@@ -1,0 +1,45 @@
+<!doctype html>
+<meta charset="utf-8">
+<script>
+/* Seeds realistic demo data into the web preview, then opens a screen. Used only to make README screenshots. */
+(function () {
+  const pad = (n) => String(n).padStart(2, "0");
+  const dk = (d) => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return dk(d); };
+  const at = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d.getTime(); };
+  const today = day(0), now = Date.now();
+  const mon = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; })();
+  const wk = (i) => { const d = new Date(mon); d.setDate(d.getDate() + i); return dk(d); };
+  const plan = {};
+  const rows = [["dosa", "chicken_curry", "egg_bhurji"], ["idli", "fish_fry", "chicken_salad"], ["omelette", "chicken_biryani", "dal_chapati"],
+    ["egg_dosa", "egg_curry", "grilled_chicken"], ["poha", "chicken_fry", "curd_rice"], ["pesarattu", "mutton_curry", null], ["upma", "chicken_pulao", "fish_curry"]];
+  rows.forEach((r, i) => { const o = {}; ["breakfast", "lunch", "dinner"].forEach((m, j) => { o[m] = r[j] ? { r: r[j] } : { t: "Eat out" }; }); plan[wk(i)] = o; plan[wk(i + 7)] = JSON.parse(JSON.stringify(o)); });
+  const sleep = {}; [[ "00:40", "07:00", 2], ["23:50", "07:05", 3], ["01:10", "07:00", 2], ["23:20", "06:55", 4], ["00:15", "07:10", 3], ["23:05", "07:00", 4], ["23:30", "07:05", 4]]
+    .forEach(([b, w, q], i) => { sleep[day(i - 6)] = { bed: b, wake: w, q, tags: [] }; });
+  const weights = [80.2, 79.9, 80.1, 79.6, 79.3, 79.4, 78.9, 78.4].map((kg, i) => ({ d: day(-49 + i * 7), kg, waist: i === 7 ? 92 : undefined }));
+  const ride = (d, km, min) => ({ id: "r" + d, d: day(d), start: at(18, 40) + d * 864e5, km, sec: min * 60, movingSec: min * 55, kcal: km * 33, climb: 40, maxSpeed: 27, pts: [] });
+  const food = [
+    { id: "a", meal: "breakfast", name: "Plain dosa", serving: "1 medium", qty: 3, kcal: 360, protein: 9, t: at(8, 10) },
+    { id: "b", meal: "breakfast", name: "Coconut chutney", serving: "2 tbsp", qty: 1, kcal: 60, protein: 1, t: at(8, 10) },
+    { id: "c", meal: "lunch", name: "Chicken curry", serving: "200 g", qty: 1, kcal: 400, protein: 38, t: at(13, 40) },
+    { id: "d", meal: "lunch", name: "Cooked rice", serving: "1 cup", qty: 1, kcal: 195, protein: 4, t: at(13, 40) },
+    { id: "e", meal: "snack", name: "Boiled egg", serving: "1", qty: 2, kcal: 156, protein: 13, t: at(16, 30) }];
+  const st = {
+    v: 1, _synced: today,
+    profile: { name: "Priyatham", sex: "male", age: 26, heightCm: 170, weightKg: 78.4, goalKg: 70, wake: "07:00", sleep: "23:00", workStart: "09:30", workEnd: "18:30",
+      workoutTime: "18:30", goals: ["weight", "sleep", "fit", "cook"], onboarded: true, setupDone: true },
+    water: { [today]: [{ t: at(8, 5), ml: 500 }, { t: at(11, 30), ml: 500 }, { t: at(13, 50), ml: 250 }, { t: at(15, 10), ml: 250 }] },
+    food: { [today]: food }, sleep, weights, plan, steps: { [today]: 6420 }, stands: { [today]: 4 },
+    workouts: [{ d: day(-2), t: at(7, 0) - 2 * 864e5, name: "Morning burner", min: 15, kcal: 118 }, { d: day(-4), t: at(7, 0) - 4 * 864e5, name: "Full-body strength", min: 24, kcal: 170 }],
+    rides: [ride(-1, 10.4, 34), ride(-3, 8.2, 29), ride(-5, 6.0, 22)],
+    devices: [{ id: "dev_l1", name: "Laptop 1", ip: "192.168.1.13", port: 5600, host: "priyatham", lastOk: now }, { id: "dev_l2", name: "Laptop 2", ip: "192.168.1.6", port: 5600, host: "DESKTOP-3RVCG78", lastOk: now }],
+    screen: { [today]: {
+      phone: { total: 252 * 6e4, lateNight: 48 * 6e4, at: now + 6e5, apps: [{ label: "Instagram", ms: 85 * 6e4 }, { label: "YouTube", ms: 58 * 6e4 }, { label: "WhatsApp", ms: 52 * 6e4 }, { label: "Chrome", ms: 57 * 6e4 }] },
+      dev_l1: { total: 305 * 6e4, at: now + 6e5, apps: [{ label: "Code", ms: 190 * 6e4 }, { label: "chrome", ms: 80 * 6e4 }, { label: "claude", ms: 35 * 6e4 }] },
+      dev_l2: { total: 60 * 6e4, at: now + 6e5, apps: [{ label: "chrome", ms: 40 * 6e4 }, { label: "Netflix", ms: 20 * 6e4 }] } } },
+  };
+  localStorage.setItem("ph_state", JSON.stringify(st));
+  const r = new URLSearchParams(location.search).get("r") || "today";
+  location.replace("index.html#/" + r);
+})();
+</script>

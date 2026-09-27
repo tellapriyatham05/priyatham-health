@@ -1,0 +1,7 @@
+{
+  "appId": "com.priyatham.health",
+  "appName": "Priyatham Health",
+  "webDir": "www",
+  "android": { "allowMixedContent": true, "backgroundColor": "#0A0A0B" },
+  "plugins": { "CapacitorHttp": { "enabled": true } }
+}

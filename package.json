@@ -1,0 +1,24 @@
+{
+  "name": "priyatham-health",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Priyatham Health: personal health companion for Android (water, workouts, GPS rides, meal prep alarms, sleep, screen time)",
+  "scripts": {
+    "sync": "cap sync android",
+    "icons": "python tools/make_logo.py",
+    "preview": "python -m http.server 8765 --directory www"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/preferences": "^7.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.6.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/priyathamtella/priyatham-health.git"
+  }
+}

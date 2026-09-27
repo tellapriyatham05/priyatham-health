@@ -40,7 +40,7 @@ sdk.dir=C:/Users/you/Android/Sdk
 ## Get the code
 
 ```bash
-git clone https://github.com/priyathamtella/priyatham-health.git
+git clone https://github.com/tellapriyatham05/priyatham-health.git
 cd priyatham-health
 npm install
 ```

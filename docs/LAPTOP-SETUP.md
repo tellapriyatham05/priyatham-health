@@ -24,7 +24,7 @@ The phone app can add your **Windows laptops'** screen time to its Insights. Eac
 Do this on **each** laptop.
 
 1. **Install ActivityWatch**: download the Windows installer from the [latest release](https://github.com/ActivityWatch/activitywatch/releases/latest) (`activitywatch-vX.Y.Z-windows-x86_64-setup.exe`), install it and start it once.
-2. **Get this repo** onto the laptop: `git clone https://github.com/priyathamtella/priyatham-health.git`, or **Code → Download ZIP** and extract it.
+2. **Get this repo** onto the laptop: `git clone https://github.com/tellapriyatham05/priyatham-health.git`, or **Code → Download ZIP** and extract it.
 3. Open a **normal** PowerShell window (not *Run as administrator*) in the repo folder and run:
    ```powershell
    powershell -ExecutionPolicy Bypass -File .\laptop\setup-laptop.ps1

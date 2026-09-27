@@ -21,7 +21,7 @@ Pick one:
 
 | Option | How |
 |---|---|
-| **Directly on the phone** *(easiest)* | Open this repo's **[Releases](https://github.com/priyathamtella/priyatham-health/releases/latest)** page in Chrome on your phone → tap **`PriyathamHealth-v1.1.apk`** under *Assets*. |
+| **Directly on the phone** *(easiest)* | Open this repo's **[Releases](https://github.com/tellapriyatham05/priyatham-health/releases/latest)** page in Chrome on your phone → tap **`PriyathamHealth-v1.1.apk`** under *Assets*. |
 | **Google Drive / OneDrive** | Upload the APK from your PC → open the Drive/OneDrive app on the phone → tap the file → **Download**. |
 | **USB cable** | Connect the phone, choose *File transfer*, copy the APK into `Download/`. |
 | **Send it to yourself** | Telegram *Saved Messages* or email to yourself, then open it on the phone. |

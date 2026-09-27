@@ -12,7 +12,7 @@ Water · workouts · GPS rides · weekly meal plans with prep alarms · calories
 ![Built with](https://img.shields.io/badge/built%20with-Capacitor%207%20%2B%20Java-0A0A0B?style=flat-square&labelColor=0A0A0B&color=C9A45C)
 ![Data](https://img.shields.io/badge/data-stays%20on%20your%20devices-0A0A0B?style=flat-square&labelColor=0A0A0B&color=C9A45C)
 
-[**⬇ Download the APK**](https://github.com/priyathamtella/priyatham-health/releases/latest) · [Features](docs/FEATURES.md) · [Install on Android](docs/INSTALL-ANDROID.md) · [Connect laptops](docs/LAPTOP-SETUP.md) · [Build from source](docs/BUILD-FROM-SOURCE.md)
+[**⬇ Download the APK**](https://github.com/tellapriyatham05/priyatham-health/releases/latest) · [Features](docs/FEATURES.md) · [Install on Android](docs/INSTALL-ANDROID.md) · [Connect laptops](docs/LAPTOP-SETUP.md) · [Build from source](docs/BUILD-FROM-SOURCE.md)
 
 </div>
 
@@ -99,7 +99,7 @@ Most health apps are abandoned within 1–3 months: too many notifications, too 
 ## Quick start
 
 ### 📱 On your Android phone
-1. Download **`PriyathamHealth-v1.1.apk`** from **[Releases](https://github.com/priyathamtella/priyatham-health/releases/latest)** (on the phone, or copy it over).
+1. Download **`PriyathamHealth-v1.1.apk`** from **[Releases](https://github.com/tellapriyatham05/priyatham-health/releases/latest)** (on the phone, or copy it over).
 2. Tap it → allow *Install unknown apps* for your browser/Files → **Install** (if Play Protect warns: *More details → Install anyway*).
 3. Open the app, fill in the welcome screen, then allow each permission on **Set up your phone**.
 4. On OnePlus/Oppo/Xiaomi/Samsung phones, set battery to **Unrestricted** so alarms can't be killed.
@@ -119,7 +119,7 @@ Most health apps are abandoned within 1–3 months: too many notifications, too 
 
 ### 🛠 From source (developers)
 ```bash
-git clone https://github.com/priyathamtella/priyatham-health.git
+git clone https://github.com/tellapriyatham05/priyatham-health.git
 cd priyatham-health
 npm install
 npx cap sync android

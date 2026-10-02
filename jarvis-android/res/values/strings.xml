@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JARVIS</string>
+    <string name="accessibility_description">Lets JARVIS press buttons for you: sending WhatsApp messages, locking the screen, taking screenshots and switching Wi-Fi or Bluetooth when Android blocks it. JARVIS only acts when you give it a voice command.</string>
+</resources>

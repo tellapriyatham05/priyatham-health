@@ -50,6 +50,9 @@ public class HudActivity extends Activity implements RecognitionListener, NotifL
     private Brain brain;
     private SpeechRecognizer recognizer;
     private boolean onDevice;
+    // Speech settings to try, best first: [language, offline?]. Error 12/13 moves to the next one.
+    private final List<String[]> sttOptions = new ArrayList<String[]>();
+    private int sttIndex;
 
     private FaceView face;
     private TextView clock, date, battery, status, heard, answer, extra;
@@ -160,9 +163,12 @@ public class HudActivity extends Activity implements RecognitionListener, NotifL
         if (recognizer == null) createRecognizer();
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, prefs.language());
+        if (sttOptions.isEmpty()) buildSttOptions();
+        String[] opt = sttOptions.get(Math.min(sttIndex, sttOptions.size() - 1));
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, opt[0]);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, opt[0]);
         i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
-        i.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
+        i.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, "1".equals(opt[1]));
         i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
         i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
         i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L);
@@ -175,6 +181,26 @@ public class HudActivity extends Activity implements RecognitionListener, NotifL
             listening = false;
             answer.setText("Speech recognition isn't available: " + e.getMessage());
         }
+    }
+
+    private void buildSttOptions() {
+        sttOptions.clear();
+        String saved = prefs.getString("stt_ok", "");
+        if (saved.contains("|")) sttOptions.add(saved.split("\\|", 2));
+        List<String> langs = new ArrayList<String>();
+        langs.add(prefs.language());
+        langs.add("en-US");
+        langs.add(Locale.getDefault().toLanguageTag());
+        langs.add("en-GB");
+        for (String offline : new String[]{"1", "0"}) {
+            for (String l : langs) {
+                if (!l.startsWith("en")) continue;
+                boolean dup = false;
+                for (String[] o : sttOptions) if (o[0].equals(l) && o[1].equals(offline)) dup = true;
+                if (!dup) sttOptions.add(new String[]{l, offline});
+            }
+        }
+        sttIndex = 0;
     }
 
     private void createRecognizer() {
@@ -225,6 +251,14 @@ public class HudActivity extends Activity implements RecognitionListener, NotifL
             listen(followUp);
             return;
         }
+        // 12/13: this language/offline combination isn't installed. Try the next one instead of giving up.
+        if ((error == 12 || error == 13) && sttIndex + 1 < sttOptions.size()) {
+            sttIndex++;
+            recognizer.destroy();
+            recognizer = null;
+            listen(followUp);
+            return;
+        }
         if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
             ui.postDelayed(new Runnable() { @Override public void run() { listen(followUp); } }, 400);
             return;
@@ -243,7 +277,11 @@ public class HudActivity extends Activity implements RecognitionListener, NotifL
             });
             return;
         }
-        if (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
+        if (error == 12 || error == 13) {
+            prefs.putString("stt_ok", "");
+            answer.setText("No English speech pack is installed. Open the JARVIS app → Setup → Offline speech recognition, "
+                    + "or turn on internet once. (Error " + error + ")");
+        } else if (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
             answer.setText("Offline speech isn't installed yet. Open the JARVIS app → Setup → Offline speech recognition.");
         } else if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
             answer.setText("Microphone permission is missing. Open the JARVIS app to allow it.");
@@ -265,7 +303,14 @@ public class HudActivity extends Activity implements RecognitionListener, NotifL
             return;
         }
         misses = 0;
+        // Remember the speech setting that worked so next time starts with it.
+        String[] ok = sttOptions.get(Math.min(sttIndex, sttOptions.size() - 1));
+        prefs.putString("stt_ok", ok[0] + "|" + ok[1]);
         String text = r.get(0);
+        // Of the recognizer's guesses, use the first one JARVIS understands.
+        for (String guess : r) {
+            if (guess != null && !"unknown".equals(CommandParser.parse(guess).intent)) { text = guess; break; }
+        }
         heard.setText("“" + text + "”");
         handle(text);
     }

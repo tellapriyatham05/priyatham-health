@@ -1,0 +1,8 @@
+models/vosk-*
+models/whisper-*
+build/
+dist/
+*.spec
+*.zip
+jarvis.ico
+__pycache__/

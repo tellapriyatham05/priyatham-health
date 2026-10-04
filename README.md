@@ -1,5 +1,27 @@
 # JARVIS
 
+Two apps: **JARVIS for Windows** (laptop, below) and **JARVIS for Android** (phone, further down).
+
+## JARVIS for Windows
+
+Say **"Hey Jarvis"** (or just "Jarvis", or press **Ctrl+Alt+J**): an armoured red-and-gold suit flies across your
+whole screen, lands in the centre on a glowing pad, and a HUD opens around it with the time, reminders, CPU, RAM,
+disk, battery, network and screen time. It talks back in a robotic voice and does what you ask. Offline, no API keys.
+
+**Download:** [JARVIS-Windows.zip](https://github.com/tellapriyatham05/priyatham-health/releases/tag/jarvis-windows-latest)
+→ unzip → run `JARVIS.exe` (SmartScreen: More info → Run anyway). Details in `jarvis-windows/README-WINDOWS.txt`.
+
+Commands: open apps/projects/folders/websites, close apps, coding/study/good-night routines, volume, brightness,
+Wi-Fi and Bluetooth, media keys, YouTube and Google, timers, reminders, alarms, memory ("remember MediaAI is my main
+project"), screen time and app limits, lock/sleep/shut down (asks first), screenshot, type text, read clipboard.
+
+Built with Python (PySide6 overlay, openWakeWord + Vosk + Whisper offline speech, Windows SAPI voice) by
+`jarvis-windows/build_windows.ps1`; GitHub Actions builds and publishes the zip on every push.
+
+---
+
+# JARVIS for Android
+
 A personal voice assistant for Android that works offline. Say **"Hey Jarvis"** and a full-screen
 JARVIS display appears: an animated holographic face, your notifications, RAM, storage, battery,
 screen time and app limits. Give a command and JARVIS does it, then answers in a robotic voice.

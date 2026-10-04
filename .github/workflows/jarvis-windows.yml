@@ -1,0 +1,48 @@
+name: JARVIS for Windows
+
+on:
+  push:
+    paths: ["jarvis-windows/**", ".github/workflows/jarvis-windows.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: jarvis-windows
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Parser tests
+        run: python -m tests.test_parser
+      - name: Build (downloads models, runs PyInstaller)
+        run: ./build_windows.ps1
+      - name: Smoke test on Windows (wake word, speech, brain)
+        run: python tests/smoke_windows.py
+      - name: Check the packaged app starts
+        run: |
+          $p = Start-Process -FilePath dist\JARVIS\JARVIS.exe -ArgumentList "--background" -PassThru
+          Start-Sleep -Seconds 25
+          if ($p.HasExited) { Write-Error "JARVIS.exe exited early with code $($p.ExitCode)"; exit 1 }
+          Write-Host "JARVIS.exe is running (pid $($p.Id))"
+          Stop-Process -Id $p.Id -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-Windows
+          path: jarvis-windows/JARVIS-Windows.zip
+      - name: Publish download (GitHub release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "jarvis-windows-latest"
+          gh release delete $tag --yes --cleanup-tag 2>$null
+          gh release create $tag JARVIS-Windows.zip --target $env:GITHUB_SHA --prerelease `
+            --title "JARVIS for Windows (latest build)" `
+            --notes "Download JARVIS-Windows.zip, unzip, run JARVIS.exe. Built from $env:GITHUB_SHA."

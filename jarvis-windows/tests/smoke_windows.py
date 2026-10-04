@@ -92,7 +92,7 @@ print(f"[cutout] {'ok ' if ok else 'BAD'} {cut.width()}x{cut.height()}, corner a
 # Speed: quick path (understood straight away) vs Whisper double-check.
 import time as _t
 from jarvis.parser import parse
-for phrase in ("open notepad", "set a timer for five minutes"):
+for phrase in ("open notepad", "set a timer for five minutes", "volume up", "pause"):
     pcm = synth(phrase, tmp)
     t0 = _t.time()
     rec = KaldiRecognizer(Model(resource("models", "vosk-model-small-en-in-0.4")), 16000)
@@ -102,10 +102,12 @@ for phrase in ("open notepad", "set a timer for five minutes"):
     quick = json.loads(rec.FinalResult())["text"]
     t_quick = _t.time() - t0
     t0 = _t.time()
-    whisper.transcribe(pcm.astype(np.float32) / 32768.0, language="en", beam_size=3, without_timestamps=True)
+    segs, _ = whisper.transcribe(pcm.astype(np.float32) / 32768.0, language="en", beam_size=3, without_timestamps=True)
+    accurate = " ".join(s.text for s in segs).strip()   # segments are lazy: consuming them does the work
     t_whisper = _t.time() - t0
-    print(f"[speed] {phrase!r}: quick {t_quick*1000:.0f} ms ({quick!r}, understood={parse(quick).intent != 'unknown'}), "
-          f"whisper {t_whisper*1000:.0f} ms")
+    from jarvis.main import quick_enough
+    print(f"[speed] {phrase!r}: quick {t_quick*1000:.0f} ms ({quick!r}, trusted={quick_enough(quick)}), "
+          f"accurate {t_whisper*1000:.0f} ms ({accurate!r})")
 
 print("SMOKE", "FAILED" if fails else "PASSED")
 sys.exit(1 if fails else 0)

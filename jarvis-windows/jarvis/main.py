@@ -46,6 +46,19 @@ def chime():
         pass
 
 
+# Commands made only of fixed words: the quick recogniser is trusted for these, so they run instantly.
+# Anything with a free-form name (apps, searches, songs, reminders) always gets the accurate double-check.
+FIXED_WORD_INTENTS = {"stop", "yes", "thanks", "hello", "how_are_you", "who_are_you", "help", "hide", "show", "volume",
+                      "brightness", "toggle", "media", "time", "date", "battery", "cpu", "ram", "storage", "status", "ip",
+                      "screenshot", "window", "keys", "clipboard", "timer", "power", "list_memory", "list_reminders",
+                      "cancel_reminders", "recycle_bin", "voice"}
+
+
+def quick_enough(text):
+    c = parse(text)
+    return c.intent in FIXED_WORD_INTENTS and not (c.intent == "screen_time" and c.get("app"))
+
+
 class Bus(QObject):
     """Cross-thread events, delivered on the UI thread."""
     wake = Signal()
@@ -76,7 +89,7 @@ class Jarvis(QObject):
         self.voice = Voice(self.store, on_level=lambda v: self.bus.level.emit(v))
         self.listener = Listener(self.store, on_wake=self.bus.wake.emit, on_partial=self.bus.partial.emit,
                                  on_final=self.bus.final.emit, on_level=self.bus.mic.emit, on_status=self.bus.status.emit,
-                                 understood=lambda text: parse(text).intent not in ("unknown", "empty"))
+                                 understood=quick_enough)
         self.active = False
         self.followup = False
         self.misses = 0

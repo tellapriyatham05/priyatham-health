@@ -321,6 +321,41 @@ def set_volume(percent):
         return False
 
 
+def duck_other_apps(factor=0.3):
+    """Turns every other app's audio (YouTube, Spotify, games) down while JARVIS listens.
+    Returns what to restore. JARVIS's own voice is left alone."""
+    saved = []
+    try:
+        from pycaw.pycaw import AudioUtilities
+        me = os.getpid()
+        for session in AudioUtilities.GetAllSessions():
+            proc = session.Process
+            if proc is None or proc.pid == me:
+                continue
+            vol = session.SimpleAudioVolume
+            level = vol.GetMasterVolume()
+            if level > 0.05:
+                saved.append((proc.pid, level))
+                vol.SetMasterVolume(max(0.02, level * factor), None)
+    except Exception:
+        pass
+    return saved
+
+
+def restore_other_apps(saved):
+    if not saved:
+        return
+    try:
+        from pycaw.pycaw import AudioUtilities
+        levels = dict(saved)
+        for session in AudioUtilities.GetAllSessions():
+            proc = session.Process
+            if proc is not None and proc.pid in levels:
+                session.SimpleAudioVolume.SetMasterVolume(levels[proc.pid], None)
+    except Exception:
+        pass
+
+
 def set_mute(on):
     try:
         _endpoint().SetMute(1 if on else 0, None)

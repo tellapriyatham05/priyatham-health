@@ -123,6 +123,7 @@ class Jarvis(QObject):
         self.misses = 0
         self.speech_id = 0
         self.after_speech = {}
+        self.ducked = None
         self.engine_status = "Starting..."
         self.settings = None
 
@@ -195,7 +196,19 @@ class Jarvis(QObject):
         self.listener.listen_command(False)
         self.on_wake()
 
+    def duck(self):
+        """Quieten other apps while JARVIS listens so a video can't drown out your command."""
+        if self.ducked is None and self.store.get("duck_audio"):
+            self.ducked = []
+            threading.Thread(target=lambda: setattr(self, "ducked", wa.duck_other_apps(0.3)), daemon=True).start()
+
+    def unduck(self):
+        saved, self.ducked = self.ducked, None
+        if saved:
+            threading.Thread(target=wa.restore_other_apps, args=(saved,), daemon=True).start()
+
     def on_wake(self):
+        self.duck()
         self.voice.stop()
         self.active = True
         self.followup = False
@@ -286,6 +299,7 @@ class Jarvis(QObject):
             then()
 
     def end_conversation(self):
+        self.unduck()
         self.active = False
         self.companion.mode = "idle"
         self.companion.show_card(6)
@@ -340,6 +354,7 @@ class Jarvis(QObject):
         open(os.path.join(data_dir(), ".welcomed"), "w").close()
 
     def quit(self):
+        self.unduck()
         self.listener.stop()
         self.tray.hide()
         self.app.quit()

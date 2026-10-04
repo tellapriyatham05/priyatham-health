@@ -208,6 +208,8 @@ class SettingsWindow(QWidget):
         self._row(cv, "Extra accuracy", self._check("accurate_mode"),
                   "Double-checks commands JARVIS didn't understand the first time.")
         self._row(cv, "Listening sound", self._check("chime"), "A soft chime when JARVIS starts listening.")
+        self._row(cv, "Lower other sounds while listening", self._check("duck_audio"),
+                  "Turns YouTube, music and games down to 30% so JARVIS hears you clearly.")
         self._row(cv, "Start with Windows", self._check("start_with_windows",
                   lambda val: wa.set_startup(val, sys.executable) if getattr(sys, "frozen", False) else None))
         v.addStretch()

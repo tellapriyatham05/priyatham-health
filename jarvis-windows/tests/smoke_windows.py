@@ -118,7 +118,8 @@ music = synth("I'm going to show you how to do it, watch closely, this is the be
 for phrase, want in (("what is the time", "time"), ("what's the time now", "time"), ("turn off yourself", "go_offline"),
                      ("hide", "hide"), ("volume down", "volume"), ("what is the date today", "date"), ("battery", "battery")):
     clean = synth(phrase, tmp).astype(np.float32)
-    bgm = np.resize(music, len(clean)).astype(np.float32) * 0.25            # a video playing quietly behind you
+    # A video playing behind you; JARVIS turns other apps down to 30% while it listens.
+    bgm = np.resize(music, len(clean)).astype(np.float32) * 0.25 * 0.3
     noisy = np.clip(clean + bgm + rng.normal(0, 600, len(clean)), -32768, 32767).astype(np.int16)
     free = KaldiRecognizer(gmodel, 16000)
     free.AcceptWaveform(noisy.tobytes())
@@ -137,6 +138,11 @@ for phrase, want in (("what is the time", "time"), ("what's the time now", "time
     ok = got == want
     fails += not ok
     print(f"[noisy] {'ok ' if ok else 'BAD'} said {phrase!r} | quick {quick!r} | words {grammar!r} -> {picked!r} ({got})")
+
+# Ducking: the real Windows audio-session API must be reachable.
+saved = wa.duck_other_apps(0.3)
+wa.restore_other_apps(saved)
+print(f"[duck] audio sessions ducked and restored: {len(saved)}")
 
 print("SMOKE", "FAILED" if fails else "PASSED")
 sys.exit(1 if fails else 0)

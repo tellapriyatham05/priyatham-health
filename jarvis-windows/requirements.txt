@@ -4,7 +4,6 @@ onnxruntime>=1.20
 sounddevice>=0.5
 vosk==0.3.45
 faster-whisper>=1.1
-pyttsx3==2.99
 pywin32>=306; sys_platform == "win32"
 comtypes>=1.4; sys_platform == "win32"
 pycaw>=20240316; sys_platform == "win32"

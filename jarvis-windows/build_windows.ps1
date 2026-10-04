@@ -23,7 +23,7 @@ python -c "from PIL import Image, ImageDraw; im=Image.new('RGBA',(256,256),(0,0,
 pyinstaller --noconfirm --clean --windowed --name JARVIS --icon jarvis.ico `
   --add-data "models;models" `
   --collect-all vosk --collect-all faster_whisper --collect-all ctranslate2 --collect-all onnxruntime `
-  --collect-all _sounddevice_data --collect-submodules pyttsx3 --hidden-import pyttsx3.drivers.sapi5 `
+  --collect-all _sounddevice_data `
   --collect-submodules comtypes --collect-submodules pycaw --collect-submodules screen_brightness_control `
   --hidden-import win32com.client --hidden-import pythoncom `
   run_jarvis.py

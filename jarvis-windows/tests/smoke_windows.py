@@ -9,15 +9,13 @@ import numpy as np
 
 
 def synth(text, path):
-    import pyttsx3
-    eng = pyttsx3.init()
-    eng.setProperty("rate", 165)
-    eng.save_to_file(text, path)
-    eng.runAndWait()
+    from jarvis.voice import synth_to_wav
+    synth_to_wav(text, path)
     with wave.open(path, "rb") as w:
         rate, pcm = w.getframerate(), np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
         if w.getnchannels() > 1:
             pcm = pcm.reshape(-1, w.getnchannels())[:, 0]
+    assert len(pcm) > rate // 4, f"Windows voice produced no audio for {text!r}"
     # Resample to 16 kHz.
     n = int(len(pcm) * 16000 / rate)
     return np.interp(np.linspace(0, len(pcm) - 1, n), np.arange(len(pcm)), pcm).astype(np.int16)

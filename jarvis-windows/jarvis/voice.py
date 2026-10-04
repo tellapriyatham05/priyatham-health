@@ -42,6 +42,47 @@ def envelope(x, block):
     return np.minimum(1.0, env / max(float(env.max()), 1e-6) * 1.15)
 
 
+def _sapi_voice(name=""):
+    import win32com.client
+    voice = win32com.client.Dispatch("SAPI.SpVoice")
+    tokens = voice.GetVoices()
+    chosen = None
+    descs = [(tokens.Item(i), tokens.Item(i).GetDescription()) for i in range(tokens.Count)]
+    if name:
+        chosen = next((t for t, d in descs if d == name), None)
+    if chosen is None:
+        for key in PREFERRED:
+            chosen = next((t for t, d in descs if key in d.lower()), None)
+            if chosen is not None:
+                break
+    if chosen is not None:
+        voice.Voice = chosen
+    return voice
+
+
+def list_voices():
+    import win32com.client
+    tokens = win32com.client.Dispatch("SAPI.SpVoice").GetVoices()
+    return [tokens.Item(i).GetDescription() for i in range(tokens.Count)]
+
+
+def synth_to_wav(text, path, voice_name="", rate=1.0):
+    """Renders text to a 22 kHz 16-bit mono WAV with Windows' built-in offline voice (SAPI)."""
+    import win32com.client
+    voice = _sapi_voice(voice_name)
+    voice.Rate = max(-10, min(10, int(round((rate - 1.0) * 10))))
+    fmt = win32com.client.Dispatch("SAPI.SpAudioFormat")
+    fmt.Type = 22                      # SAFT22kHz16BitMono
+    stream = win32com.client.Dispatch("SAPI.SpFileStream")
+    stream.Format = fmt
+    stream.Open(path, 3, False)        # SSFMCreateForWrite
+    try:
+        voice.AudioOutputStream = stream
+        voice.Speak(text)
+    finally:
+        stream.Close()
+
+
 class Voice:
     def __init__(self, store, on_level):
         self.store = store
@@ -64,30 +105,17 @@ class Voice:
         except Exception:
             pass
 
-    def _engine(self):
-        import pyttsx3
-        eng = pyttsx3.init()
-        voices = eng.getProperty("voices")
-        self.voices = [v.name for v in voices]
-        want = self.store.get("voice_name")
-        chosen = next((v for v in voices if v.name == want), None)
-        if chosen is None:
-            for key in PREFERRED:
-                chosen = next((v for v in voices if key in v.name.lower()), None)
-                if chosen:
-                    break
-        if chosen:
-            eng.setProperty("voice", chosen.id)
-        return eng
-
     def _run(self):
         try:
             import pythoncom
             pythoncom.CoInitialize()
         except Exception:
             pass
-        eng = None
         path = os.path.join(tempfile.gettempdir(), "jarvis_say.wav")
+        try:
+            self.voices = list_voices()
+        except Exception:
+            self.voices = []
         while True:
             gen, text, done = self._q.get()
             if gen != self._gen:
@@ -95,27 +123,16 @@ class Voice:
                     done()
                 continue
             try:
-                if eng is None or getattr(self, "_reload", False):
-                    eng = self._engine()
-                    self._reload = False
-                rate = float(self.store.get("speech_rate"))
-                eng.setProperty("rate", int(175 * rate))
-                eng.save_to_file(text, path)
-                eng.runAndWait()
+                synth_to_wav(text, path, self.store.get("voice_name"), float(self.store.get("speech_rate")))
                 self._play(path, gen)
             except Exception:
-                # Last resort: speak without the filter.
-                try:
-                    eng.say(text)
-                    eng.runAndWait()
-                except Exception:
-                    pass
+                pass
             self.on_level(0.0)
             if done:
                 done()
 
     def reload(self):
-        self._reload = True
+        pass  # the voice is looked up for every sentence
 
     def _play(self, path, gen):
         import sounddevice as sd

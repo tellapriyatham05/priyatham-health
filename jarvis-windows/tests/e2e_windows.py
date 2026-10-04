@@ -58,12 +58,30 @@ def pump(seconds, until=None):
 
 
 fails = 0
-for wake, command, expect in (("Hey Jarvis", "what is the time", "It's"),
-                              ("Hey Jarvis", "open notepad", "Opening Notepad"),
-                              ("Jarvis", "hide", "Going")):
+TV = None
+
+
+def with_tv(audio):
+    """Someone talking in the background (a video or TV) under your voice, the whole time."""
+    global TV
+    if TV is None:
+        TV = speech("and in other news the markets closed higher today while the weather stays warm and sunny "
+                    "across most of the country for the rest of the week according to the latest forecast")
+    bg = np.resize(TV, len(audio)).astype(np.float32) * 0.18
+    return np.clip(audio.astype(np.float32) + bg, -32768, 32767).astype(np.int16)
+
+
+ROUNDS = (("Hey Jarvis", "what is the time", "It's", False),
+          ("Hey Jarvis", "open notepad", "Opening Notepad", False),
+          ("Jarvis", "hide", "Going", False),
+          ("Jarvis", "what is the time", "It's", True),       # with a video playing in the background
+          ("Jarvis", "quit", "Going", False))
+for wake, command, expect, tv in ROUNDS:
     pump(1.0)
     before = len(j.store.get("log"))
     audio = np.concatenate([noise(1.0), speech(wake), noise(0.4), speech(command), noise(3.0)])
+    if tv:
+        audio = with_tv(audio)
     t_end_of_speech = None
     feeder = threading.Thread(target=feed, args=(audio,), daemon=True)
     started = time.time()
@@ -77,9 +95,15 @@ for wake, command, expect in (("Hey Jarvis", "what is the time", "It's"),
     feeder.join(timeout=30)
     ok = got and reply and reply["reply"].startswith(expect) and ready
     fails += not ok
-    print(f"[e2e] {'ok ' if ok else 'BAD'} {wake!r} + {command!r}: heard {reply and reply['heard']!r} -> "
+    print(f"[e2e] {'ok ' if ok else 'BAD'} {wake!r} + {command!r}{' (TV on)' if tv else ''}: heard {reply and reply['heard']!r} -> "
           f"{reply and reply['reply']!r}; reply {latency:.1f}s after you stopped talking; ready again: {ready}")
     print(f"      recognisers: {j.listener.__dict__.get('last_candidates')}")
+
+# After "quit" JARVIS must fly off the screen.
+pump(3.0)
+gone = j.companion.phase in ("out", "hidden")
+print(f"[e2e] {'ok ' if gone else 'BAD'} left the screen after quit: {j.companion.phase}")
+fails += not gone
 
 log_path = os.path.join(os.environ["APPDATA"], "JARVIS", "jarvis.log")
 if os.path.exists(log_path):

@@ -20,6 +20,8 @@ CASES = [
     ("new tab", "keys"), ("call Priyatham", "phone_only"), ("what is the capital of france", "search"), ("thank you", "thanks"),
     ("stop", "stop"), ("yes", "yes"), ("Hey Jarvis", "empty"), ("open wifi settings", "open_settings"), ("switch to robot voice", "voice"),
     ("who are you", "who_are_you"), ("Jarvis hide", "hide"), ("hide", "hide"), ("go away", "hide"), ("come here", "show"), ("turn off yourself", "go_offline"), ("stop listening", "go_offline"),
+    ("Jarvis quit", "hide"), ("quit", "hide"), ("exit", "hide"), ("bye", "hide"), ("close yourself", "hide"),
+    ("quit jarvis completely", "exit_app"), ("close WhatsApp", "close"), ("open WhatsApp", "open"),
     ("what is the time", "time"), ("cancel all reminders", "cancel_reminders"), ("empty the recycle bin", "recycle_bin"),
 ]
 bad = 0

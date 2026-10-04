@@ -13,7 +13,8 @@ class Reply:
     close: end the conversation. ask: listen again for an answer. hide/show: the on-screen character."""
 
     def __init__(self, speech="", after=None, close=False, ask=False, display=None, wait=False, hide=False, show=False,
-                 offline=False):
+                 offline=False, quit=False):
+        self.quit = quit
         self.speech, self.after, self.close, self.ask, self.display = speech, after, close, ask, display
         self.wait, self.hide, self.show, self.offline = wait, hide, show, offline
 
@@ -123,6 +124,8 @@ class Brain:
                           offline=True)
         if i == "hide":
             return self.r("Going{sir}. Call me when you need me.", close=True, hide=True)
+        if i == "exit_app":
+            return self.r("Shutting down JARVIS{sir}. Goodbye.", close=True, hide=True, quit=True)
         if i == "show":
             return self.r("Right here{sir}.", show=True, ask=False)
         if i == "yes":

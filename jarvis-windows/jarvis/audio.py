@@ -89,6 +89,9 @@ class Listener:
         self.vocabulary = lambda: []
         self._grec = None
         self._grammar_key = None
+        self._preroll = []
+        self._kws_seen = 0
+        self.frames = 0
 
     # ---------------------------------------------------------------- setup
     def load(self):
@@ -197,11 +200,23 @@ class Listener:
                     self.error = None
                     self.on_status("listening")
                     self.reopen = False
+                    log.info("microphone open: %s", device or "Windows default")
+                    empty, beat = 0, time.time()
                     while not self._stop.is_set() and not self.reopen:
                         try:
                             frame = self._q.get(timeout=1.0)
                         except queue.Empty:
+                            empty += 1
+                            if empty >= 3:      # the microphone stopped sending sound: open it again
+                                log.warning("microphone went silent (no audio for 3 s), reopening")
+                                break
                             continue
+                        empty = 0
+                        self.frames += 1
+                        if time.time() - beat > 60:
+                            beat = time.time()
+                            log.info("alive: mode=%s level=%.3f room=%.3f paused=%s", self.mode, self.level_now,
+                                     self.noise_floor, self.paused)
                         try:
                             self._handle(frame)
                         except Exception:
@@ -222,27 +237,40 @@ class Listener:
             self.noise_floor = min(level, self.noise_floor * 1.02 + 0.0005) if self.noise_floor else level
             score = self.wake.process(frame)
             hit = score >= float(self.store.get("wake_threshold"))
-            if not hit and self.store.get("wake_plain_jarvis") and self.kws.AcceptWaveform(frame.tobytes()):
-                res = json.loads(self.kws.Result())
-                # Only a confident, stand-alone "Jarvis" counts (the grammar maps other speech to [unk]).
-                words = res.get("result", [])
-                hit = any(w.get("word") == "jarvis" and w.get("conf", 0) >= 0.92 for w in words) and len(words) <= 2
+            self._preroll = (self._preroll + [frame])[-6:]
+            if not hit and self.store.get("wake_plain_jarvis"):
+                hit = self._plain_jarvis(frame)
             if hit:
+                log.info("wake word heard (score %.2f)", score)
                 self.wake.reset()
                 self.kws.Reset()
+                self._kws_seen = 0
                 # Start recording the command straight away ("Jarvis, open notepad" in one breath).
+                pre = self._preroll[-3:]
                 self.listen_command(False)
+                for f in pre:                    # the start of the command may already be in these frames
+                    self._feed_command(f)
                 self.on_wake()
             return
         # Command mode: collect audio until a pause after speech.
         self.on_level(min(1.0, level))
-        self._cmd_audio.append(frame)
         now = time.time()
+        if self._feed_command(frame):
+            return
         # Speech = clearly louder than the room's background noise (fans, music, a video).
         voice_threshold = max(0.06, self.noise_floor * 2.5)
         if level > voice_threshold and now - self._cmd_started > 0.25:   # ignore the wake chime
             self._last_voice = now
             self._heard_voice = True
+        waited = now - self._cmd_started
+        if (self._heard_voice and now - self._last_voice > 0.8) or waited > 7 or (not self._heard_voice and waited > (4 if self._followup else 5)):
+            text = json.loads(self._rec.FinalResult()).get("text", "") if self._rec else ""
+            self._finish(text)
+
+    def _feed_command(self, frame):
+        """Adds one frame to the command recording. Returns True when the command was finished."""
+        now = time.time()
+        self._cmd_audio.append(frame)
         if self._grec is not None:
             try:
                 self._grec.AcceptWaveform(frame.tobytes())
@@ -250,24 +278,49 @@ class Listener:
                 self._grec = None
         if self._rec and self._rec.AcceptWaveform(frame.tobytes()):
             text = json.loads(self._rec.Result()).get("text", "")
-            if text.strip():
+            if text.strip() and text.strip() not in ("jarvis", "hey jarvis", "the", "huh"):
                 self._finish(text)
-                return
+                return True
         elif self._rec:
             partial = json.loads(self._rec.PartialResult()).get("partial", "")
             # Only a *new* word counts as still talking; the partial text stays the same during silence.
-            if partial and partial != self._last_partial:
+            if partial and partial != self._last_partial and partial not in ("jarvis", "hey jarvis", "hey", "the"):
                 self._last_partial = partial
                 self._heard_voice = True
                 self._last_voice = now
                 self.on_partial(partial)
-        waited = now - self._cmd_started
-        if (self._heard_voice and now - self._last_voice > 0.8) or waited > 8 or (not self._heard_voice and waited > (4 if self._followup else 6)):
-            text = json.loads(self._rec.FinalResult()).get("text", "") if self._rec else ""
-            self._finish(text)
+        return False
+
+    def _plain_jarvis(self, frame):
+        """"Jarvis" on its own. Checked as soon as the word appears, instead of waiting for a pause
+        (with a TV or music on there may never be one)."""
+        if self.kws.AcceptWaveform(frame.tobytes()):
+            words = json.loads(self.kws.Result()).get("result", [])
+            self._kws_seen = 0
+            return self._confident_jarvis(words)
+        partial = json.loads(self.kws.PartialResult()).get("partial", "")
+        if "jarvis" in partial.split():
+            self._kws_seen += 1
+            if self._kws_seen >= 3:          # let the word finish (~0.2 s), then score it
+                words = json.loads(self.kws.FinalResult()).get("result", [])
+                self.kws.Reset()
+                self._kws_seen = 0
+                return self._confident_jarvis(words)
+        else:
+            self._kws_seen = 0
+            if len(partial.split()) > 12:    # long stretch of other speech: start fresh
+                self.kws.Reset()
+        return False
+
+    @staticmethod
+    def _confident_jarvis(words):
+        # The grammar only knows "jarvis"; everything else becomes [unk]. A clear "jarvis" scores high.
+        return any(w.get("word") == "jarvis" and w.get("conf", 0) >= 0.9 for w in words)
 
     def _finish(self, vosk_text):
         self.mode = "muted"
+        self.mode_since = time.time()
+        self.last_heard_voice = self._heard_voice
         audio = np.concatenate(self._cmd_audio) if self._cmd_audio else np.zeros(0, np.int16)
         quick = vosk_text.strip()
         grammar = ""
@@ -287,8 +340,9 @@ class Listener:
             if self.whisper is None or len(audio) < SAMPLE_RATE * 0.4 or not (quick or grammar or self._heard_voice):
                 return ""
             try:
+                clip = audio[-SAMPLE_RATE * 7:]
                 segs, _ = self.whisper.transcribe(
-                    audio.astype(np.float32) / 32768.0, language="en", beam_size=5, vad_filter=False,
+                    clip.astype(np.float32) / 32768.0, language="en", beam_size=5, vad_filter=False,
                     without_timestamps=True, condition_on_previous_text=False,
                     initial_prompt="Jarvis commands: what is the time, what's the date, open Chrome, open VS Code, "
                                    "volume up, wifi off, play music on YouTube, set a timer for five minutes, hide.")

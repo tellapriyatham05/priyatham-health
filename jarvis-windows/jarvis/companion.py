@@ -32,7 +32,12 @@ class Companion(QWidget):
     menu_requested = Signal(QPoint)
     moved = Signal(int, int)
 
-    CARD_W = 300
+    CARD_W_FULL = 300
+
+    @property
+    def CARD_W(self):
+        """No text card unless "Show reply text" is on: just JARVIS."""
+        return self.CARD_W_FULL if self.store.get("show_text") else 0
 
     def __init__(self, store):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -58,6 +63,8 @@ class Companion(QWidget):
         self._press_pos = None
         self.pixmap = None
         self.cutout = True
+        self.feet = None
+        self.hop = False
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick)
         self.load_character()
@@ -71,6 +78,7 @@ class Companion(QWidget):
     def load_character(self):
         """The user's image (background removed when available) or the built-in suit."""
         self.pixmap = None
+        self.feet = None
         path = self.store.get("char_cutout") if self.store.get("char_remove_bg") else ""
         path = path if path and os.path.exists(path) else self.store.get("char_image")
         if path and os.path.exists(path):
@@ -78,6 +86,7 @@ class Companion(QWidget):
             if not img.isNull():
                 self.pixmap = QPixmap.fromImage(img)
                 self.cutout = img.hasAlphaChannel() and path == self.store.get("char_cutout")
+                self.feet = find_feet(img) if self.cutout else None
         self._layout()
 
     def char_size(self):
@@ -101,14 +110,18 @@ class Companion(QWidget):
         self.char_rect = QRectF(self.CARD_W + 16 + pad / 2, pad, cw, ch)
         if self.store.get("char_side") == "left":
             self.char_rect.moveLeft(pad / 2)
-        self.resize(int(self.CARD_W + 16 + cw + pad), int(ch + pad * 2))
+        self.resize(int(self.CARD_W + 16 + cw + pad), int(ch + pad + self.flame_room()))
 
     MAX_SCALE = 1.7
+
+    def flame_room(self):
+        """Space under the boots for the hover flames."""
+        return int(self.char_height() * 0.32)
 
     def home_pos(self):
         scr = QGuiApplication.primaryScreen().availableGeometry()
         cw, ch = self.char_size()
-        w, h = int(self.CARD_W + 16 + cw + 40), int(ch + 80)
+        w, h = int(self.CARD_W + 16 + cw + 40), int(ch + 40 + self.flame_room())
         saved = self.store.get("char_pos")
         if saved and len(saved) == 2:
             x, y = saved
@@ -126,8 +139,11 @@ class Companion(QWidget):
 
     # ---------------------------------------------------------------- show / hide
     def appear(self):
-        if self.phase in (FLY_IN, IDLE):
+        if self.phase == FLY_IN:
             self.raise_()
+            return
+        if self.phase == IDLE:
+            self._take_off_hop()
             return
         target = self._char_origin()
         scr = QGuiApplication.primaryScreen().geometry()
@@ -144,6 +160,7 @@ class Companion(QWidget):
                          (ex + (-1 if from_left else 1) * scr.width() * 0.25, ey + scr.height() * 0.15),
                          (ex, ey)]
             self.phase = FLY_IN
+            self.hop = False
             self.move(int(self.path[0][0]), int(self.path[0][1]))
         else:
             self._layout(False)
@@ -152,6 +169,26 @@ class Companion(QWidget):
         self.phase_start = time.time()
         self.show()
         self.raise_()
+        self.timer.start(16)
+
+    def _take_off_hop(self):
+        """Called while already on screen: a quick boost up and a loop back down, jets firing."""
+        self.raise_()
+        if not self.store.get("fly_animation"):
+            return
+        glob = QPointF(self.x() + self.char_rect.x(), self.y() + self.char_rect.y())
+        self._layout(True)
+        ex, ey = glob.x() - self.char_rect.x(), glob.y() - self.char_rect.y()
+        scr = QGuiApplication.primaryScreen().geometry()
+        side = -1 if ex > scr.center().x() else 1
+        up = scr.height() * 0.32
+        self.path = [(ex, ey), (ex + side * scr.width() * 0.16, ey - up * 1.3),
+                     (ex - side * scr.width() * 0.06, ey - up * 1.1), (ex, ey)]
+        self.move(int(ex), int(ey))
+        self.trail = []
+        self.hop = True
+        self.phase = FLY_IN
+        self.phase_start = time.time()
         self.timer.start(16)
 
     def leave(self):
@@ -186,16 +223,20 @@ class Companion(QWidget):
 
     # ---------------------------------------------------------------- animation
     FLY_IN_TIME = 2.1
+    HOP_TIME = 1.3
     FLY_OUT_TIME = 1.4
 
     def _tick(self):
         now = time.time()
         el = now - self.phase_start
         if self.phase in (FLY_IN, FLY_OUT):
-            dur = self.FLY_IN_TIME if self.phase == FLY_IN else self.FLY_OUT_TIME
+            dur = (self.HOP_TIME if self.hop else self.FLY_IN_TIME) if self.phase == FLY_IN else self.FLY_OUT_TIME
             t = min(1.0, el / dur)
             # Fly in: fast, then braking for the landing. Fly out: slow lift-off, then accelerate.
-            e = (1 - (1 - t) ** 3) if self.phase == FLY_IN else t ** 2.2
+            if self.hop:
+                e = t * t * (3 - 2 * t)
+            else:
+                e = (1 - (1 - t) ** 3) if self.phase == FLY_IN else t ** 2.2
             x, y = bezier(self.path, e)
             nx, ny = bezier(self.path, min(1.0, e + 0.02))
             self.vel = (nx - x, ny - y)
@@ -204,8 +245,13 @@ class Companion(QWidget):
             if self.phase == FLY_IN:
                 upright = max(0.0, (t - 0.72) / 0.28)            # straighten up for the landing
                 self.tilt = max(-70, min(70, heading)) * (1 - upright)
-                self.scale = 1 + (self.MAX_SCALE - 1) * (1 - e) ** 1.6   # close to the camera, then away
-                self.thrust = 1.0 - 0.6 * upright
+                if self.hop:
+                    self.tilt = max(-35, min(35, heading)) * (1 - upright)
+                    self.scale = 1 + 0.18 * math.sin(math.pi * t)
+                    self.thrust = 1.0 - 0.5 * upright
+                else:
+                    self.scale = 1 + (self.MAX_SCALE - 1) * (1 - e) ** 1.6   # close to the camera, then away
+                    self.thrust = 1.0 - 0.6 * upright
             else:
                 self.tilt = max(-55, min(55, heading)) * min(1.0, t * 3)
                 self.scale = 1 + 0.25 * t
@@ -214,7 +260,7 @@ class Companion(QWidget):
             self.move(int(x), int(y))
             if t >= 1:
                 if self.phase == FLY_IN:
-                    self.phase, self.phase_start = IDLE, now
+                    self.phase, self.phase_start, self.hop = IDLE, now, False
                     self.tilt, self.scale, self.thrust, self.trail = 0.0, 1.0, 0.0, []
                     self._layout(False)
                     self.move(self.home_pos())
@@ -226,8 +272,10 @@ class Companion(QWidget):
                         self.on_hidden()
                     return
         else:
-            self.tilt = math.sin(now * 0.8) * 1.5
-            self.scale, self.thrust = 1.0, 0.0
+            # Hovering in place: gentle sway, boots firing softly (stronger while he talks or listens).
+            self.tilt = math.sin(now * 0.8) * 2.0
+            self.scale = 1.0
+            self.thrust = 0.38 + 0.12 * math.sin(now * 2.3) + (0.15 if self.mode != "idle" else 0)
         self.shown_level += (self.level - self.shown_level) * 0.4
         self.update()
 
@@ -238,7 +286,7 @@ class Companion(QWidget):
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         now = time.time()
         flying = self.phase in (FLY_IN, FLY_OUT)
-        bob = 0 if flying else math.sin((now - self.t0) * 1.6) * 6
+        bob = 0 if flying else math.sin((now - self.t0) * 1.6) * 9
         r = QRectF(self.char_rect)
         scale = getattr(self, "scale", 1.0)
         if scale != 1.0:
@@ -248,7 +296,7 @@ class Companion(QWidget):
         talk = self.shown_level if self.mode == "speaking" else 0.0
         if flying:
             self._trail(p, r)
-            self._thrusters(p, r, now)
+        self._thrusters(p, r, now, flying)
         self._aura(p, r, talk, flying)
         if self.pixmap:
             self._draw_image(p, r, talk, flying)
@@ -256,7 +304,7 @@ class Companion(QWidget):
             draw_suit(p, r.center().x(), r.center().y(), r.height(), t=now - self.t0, level=talk,
                       thrust=getattr(self, "thrust", 0) if flying else 0.25 + 0.08 * math.sin(now * 6), tilt=self.tilt,
                       palm=0.5 + 0.5 * max(talk, self.mic if self.mode == "listening" else 0))
-        if not flying and (self.mode != "idle" or now < self.card_until):
+        if not flying and self.CARD_W and (self.mode != "idle" or now < self.card_until):
             self._card(p, now)
         p.end()
 
@@ -276,42 +324,46 @@ class Companion(QWidget):
             p.drawPixmap(QRectF(-r.width() / 2, -r.height() / 2, r.width(), r.height()), self.pixmap, QRectF(self.pixmap.rect()))
             p.restore()
 
-    def _thrusters(self, p, r, now):
-        """Repulsor jets from both boots (and a glow at the palms), pointing away from the direction of travel."""
+    def _thrusters(self, p, r, now, flying=True):
+        """Blue repulsor flames from both boots (and glowing palms while flying)."""
         thrust = getattr(self, "thrust", 1.0)
         if thrust <= 0.02 or not self.pixmap:
             return
         p.save()
         p.translate(r.center())
         p.rotate(self.tilt)
-        flick = 0.85 + 0.15 * math.sin(now * 47)
-        length = r.height() * 0.32 * thrust * flick
-        for fx in (-0.17, 0.17):
-            x0, y0 = fx * r.width(), r.height() * 0.47
-            g = QLinearGradient(QPointF(x0, y0), QPointF(x0, y0 + length))
-            g.setColorAt(0.0, QColor(255, 255, 255, 240))
-            g.setColorAt(0.18, QColor(165, 243, 252, 220))
-            g.setColorAt(0.55, QColor(56, 189, 248, 120))
-            g.setColorAt(1.0, QColor(14, 116, 244, 0))
-            w = r.width() * 0.09
-            path = QPainterPath()
-            path.moveTo(x0 - w / 2, y0)
-            path.quadTo(x0 - w * 0.7, y0 + length * 0.45, x0, y0 + length)
-            path.quadTo(x0 + w * 0.7, y0 + length * 0.45, x0 + w / 2, y0)
-            p.setPen(Qt.NoPen)
-            p.setBrush(QBrush(g))
-            p.drawPath(path)
-            core = QRadialGradient(QPointF(x0, y0 + 4), w * 0.9)
-            core.setColorAt(0, QColor(255, 255, 255, 230))
-            core.setColorAt(1, QColor(125, 211, 252, 0))
-            p.setBrush(QBrush(core))
-            p.drawEllipse(QPointF(x0, y0 + 4), w * 0.9, w * 0.9)
-        for hx in (-0.42, 0.42):                                   # palm repulsors
-            glow = QRadialGradient(QPointF(hx * r.width(), r.height() * 0.05), r.width() * 0.09)
-            glow.setColorAt(0, QColor(255, 255, 255, int(200 * thrust)))
-            glow.setColorAt(1, QColor(125, 211, 252, 0))
+        feet = self.feet or ((-0.16, 0.48), (0.16, 0.48))
+        for i, (fx, fy) in enumerate(feet):
+            flick = 0.8 + 0.2 * math.sin(now * 41 + i * 2.1) + 0.08 * math.sin(now * 97 + i)
+            length = r.height() * (0.18 + 0.42 * thrust) * flick
+            w = r.width() * (0.07 + 0.06 * thrust)
+            x0, y0 = fx * r.width(), fy * r.height() - w * 0.25
+            # Outer blue flame, then a hot white core.
+            for scale_w, scale_l, cols in ((1.0, 1.0, ((255, 255, 255, 230), (125, 211, 252, 210), (37, 99, 235, 140), (29, 78, 216, 0))),
+                                           (0.45, 0.55, ((255, 255, 255, 255), (224, 242, 254, 240), (165, 243, 252, 160), (125, 211, 252, 0)))):
+                ww, ll = w * scale_w, length * scale_l
+                g = QLinearGradient(QPointF(x0, y0), QPointF(x0, y0 + ll))
+                for stop, c in zip((0.0, 0.2, 0.6, 1.0), cols):
+                    g.setColorAt(stop, QColor(*c))
+                path = QPainterPath()
+                path.moveTo(x0 - ww / 2, y0)
+                path.cubicTo(x0 - ww * 0.8, y0 + ll * 0.35, x0 - ww * 0.15, y0 + ll * 0.8, x0, y0 + ll)
+                path.cubicTo(x0 + ww * 0.15, y0 + ll * 0.8, x0 + ww * 0.8, y0 + ll * 0.35, x0 + ww / 2, y0)
+                p.setPen(Qt.NoPen)
+                p.setBrush(QBrush(g))
+                p.drawPath(path)
+            glow = QRadialGradient(QPointF(x0, y0 + w * 0.2), w * 1.6)
+            glow.setColorAt(0, QColor(186, 230, 253, int(200 * min(1, thrust + 0.2))))
+            glow.setColorAt(1, QColor(56, 189, 248, 0))
             p.setBrush(QBrush(glow))
-            p.drawEllipse(QPointF(hx * r.width(), r.height() * 0.05), r.width() * 0.09, r.width() * 0.09)
+            p.drawEllipse(QPointF(x0, y0 + w * 0.2), w * 1.6, w * 1.6)
+        if flying:
+            for hx in (-0.42, 0.42):                               # palm repulsors
+                glow = QRadialGradient(QPointF(hx * r.width(), r.height() * 0.05), r.width() * 0.1)
+                glow.setColorAt(0, QColor(255, 255, 255, int(210 * thrust)))
+                glow.setColorAt(1, QColor(125, 211, 252, 0))
+                p.setBrush(QBrush(glow))
+                p.drawEllipse(QPointF(hx * r.width(), r.height() * 0.05), r.width() * 0.1, r.width() * 0.1)
         p.restore()
 
     def _aura(self, p, r, talk, flying):
@@ -425,3 +477,37 @@ class Companion(QWidget):
             self.store.set("char_pos", [self.x(), self.y()])
         else:
             self.clicked.emit()
+
+
+def find_feet(img):
+    """Where the character's boots are (as fractions from the centre), found from the cut-out's
+    shape: the lowest solid parts of the picture. Falls back to a standing pose."""
+    try:
+        small = img.scaledToHeight(200, Qt.SmoothTransformation).convertToFormat(QImage.Format_ARGB32)
+        w, h = small.width(), small.height()
+        rows = []
+        for y in range(h - 1, int(h * 0.6), -1):
+            xs = [x for x in range(w) if small.pixelColor(x, y).alpha() > 128]
+            if len(xs) >= 2:
+                rows.append((y, xs))
+            if len(rows) >= 4:
+                break
+        if not rows:
+            return None
+        y, xs = rows[-1]
+        # Split the solid pixels on that row into runs (one per boot).
+        runs, start = [], xs[0]
+        for a, b in zip(xs, xs[1:] + [None]):
+            if b is None or b - a > 2:
+                runs.append((start, a))
+                if b is not None:
+                    start = b
+        runs = sorted(runs, key=lambda r_: r_[1] - r_[0], reverse=True)[:2]
+        fy = y / h - 0.5
+        feet = [((a + b) / 2 / w - 0.5, fy) for a, b in sorted(runs)]
+        if len(feet) == 1:
+            cx = feet[0][0]
+            feet = [(cx - 0.06, fy), (cx + 0.06, fy)]
+        return feet
+    except Exception:
+        return None

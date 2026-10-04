@@ -303,6 +303,8 @@ class SettingsWindow(QWidget):
         self._row(cv, "Extra accuracy", self._check("accurate_mode"),
                   "Double-checks commands JARVIS didn't understand the first time.")
         self._row(cv, "Listening sound", self._check("chime"), "A soft chime when JARVIS starts listening.")
+        self._row(cv, "Keep listening after a reply", self._check("follow_up"),
+                  "Off (recommended): say \"Jarvis\" before every command.")
         self._row(cv, "Lower other sounds while listening", self._check("duck_audio"),
                   "Turns YouTube, music and games down to 30% so JARVIS hears you clearly.")
         self._row(cv, "Start with Windows", self._check("start_with_windows",
@@ -388,6 +390,8 @@ class SettingsWindow(QWidget):
         self._row(cv, "Corner", self._combo("char_side", [("Bottom right", "right"), ("Bottom left", "left")],
                                             lambda: (self.s.set("char_pos", []), self._apply_character())))
         self._row(cv, "Fly-in animation", self._check("fly_animation"))
+        self._row(cv, "Show reply text", self._check("show_text", lambda val: self._apply_character()),
+                  "Off: only JARVIS on screen and his voice. On: a small text card next to him.")
         v.addStretch()
         return w
 

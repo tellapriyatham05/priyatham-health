@@ -35,16 +35,19 @@ def make_icon(size=64):
 
 
 def chime():
-    """A short, soft two-note sound so you know JARVIS is listening."""
+    """A short, soft two-note sound so you know JARVIS heard you."""
     try:
-        import sounddevice as sd
+        from .voice import play_file, write_wav
         rate = 22050
-        t = np.arange(int(rate * 0.09)) / rate
+        t = np.arange(int(rate * 0.08)) / rate
         fade = np.minimum(1, np.minimum(t, t[::-1]) * 60)
         tone = np.concatenate([np.sin(2 * np.pi * 880 * t), np.sin(2 * np.pi * 1320 * t)]) * np.concatenate([fade, fade])
-        sd.play((tone * 0.12 * 32767).astype(np.int16), rate)
+        path = os.path.join(data_dir(), "chime.wav")
+        if not os.path.exists(path):
+            write_wav(path, (tone * 0.12 * 32767).astype(np.int16), rate)
+        play_file(path)
     except Exception:
-        pass
+        log.exception("chime failed")
 
 
 # Commands made only of fixed words: the quick recogniser is trusted for these, so they run instantly.
@@ -258,12 +261,16 @@ class Jarvis(QObject):
             self.listener.back_to_wake()
             return
         text = text.strip()
-        if not text:
-            if self.followup or self.misses >= 1:
-                self.end_conversation()
-                return
+        if parse(text).intent == "empty" and text and self.misses == 0 and not self.followup:
+            # Only "Jarvis" so far: you paused before the command. Keep listening.
             self.misses += 1
-            self.say("Sorry, I didn't catch that.", lambda: self.listen(False))
+            self.listen(False)
+            return
+        if parse(text).intent == "empty":
+            if self.followup or not getattr(self.listener, "last_heard_voice", False):
+                self.end_conversation()        # nothing was said: quietly go back to waiting for "Jarvis"
+            else:
+                self.say("Sorry, I didn't catch that.", self.end_conversation)
             return
         self.misses = 0
         self.companion.heard = text
@@ -304,10 +311,15 @@ class Jarvis(QObject):
             elif reply.hide:
                 self.end_conversation()
                 self.companion.leave()
-            elif reply.close:
-                self.end_conversation()
+                if getattr(reply, "quit", False):
+                    QTimer.singleShot(1600, self.quit)
+            elif reply.ask:
+                self.listen(False)             # JARVIS asked you something: wait for the answer
+            elif not reply.close and self.store.get("follow_up"):
+                self.listen(True)
             else:
-                self.listen(not reply.ask)
+                # Done: straight back to waiting for "Jarvis", so the next call always works.
+                self.end_conversation()
         if reply.speech:
             self.say(reply.speech, done)
         else:
@@ -356,6 +368,7 @@ class Jarvis(QObject):
         self.companion.mode = "idle"
         self.companion.show_card(6)
         self.listener.back_to_wake()
+        log.info("ready for the next \"Jarvis\"")
 
     def hide(self):
         self.end_conversation()

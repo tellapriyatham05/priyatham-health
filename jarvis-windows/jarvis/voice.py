@@ -129,11 +129,7 @@ class Voice:
 
     def stop(self):
         self._gen += 1
-        try:
-            import sounddevice as sd
-            sd.stop()
-        except Exception:
-            pass
+        _stop_sound()
 
     def _run(self):
         try:
@@ -170,7 +166,6 @@ class Voice:
         pass  # the voice is looked up for every sentence
 
     def _play(self, path, gen):
-        import sounddevice as sd
         with wave.open(path, "rb") as w:
             rate = w.getframerate()
             ch = w.getnchannels()
@@ -181,14 +176,49 @@ class Voice:
         play_rate = int(rate * (2 ** (semis / 12.0)))  # lower pitch = deeper, slightly slower
         pcm = robotize(pcm, rate, mix, hz, comb, fb)
         env = envelope(pcm, 256)
-        sd.play(pcm, play_rate)
+        out = path[:-4] + "_play.wav"
+        write_wav(out, pcm, play_rate)
+        play_file(out)
         start = time.time()
         total = len(pcm) / play_rate
-        while time.time() - start < total + 0.05:
+        while time.time() - start < total + 0.1:
             if gen != self._gen:
-                sd.stop()
+                _stop_sound()
                 return
             idx = int((time.time() - start) * play_rate / 256)
             self.on_level(float(env[min(idx, len(env) - 1)]))
             time.sleep(0.03)
-        sd.wait()
+
+
+def write_wav(path, pcm, rate):
+    with wave.open(path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(np.asarray(pcm, np.int16).tobytes())
+
+
+def play_file(path):
+    """Plays a WAV without waiting. Uses Windows' own sound player (not the microphone's audio
+    library), so speaking can never disturb listening."""
+    try:
+        import winsound
+        winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+    except ImportError:
+        import sounddevice as sd
+        with wave.open(path, "rb") as w:
+            sd.play(np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16), w.getframerate())
+
+
+def _stop_sound():
+    try:
+        import winsound
+        winsound.PlaySound(None, winsound.SND_PURGE)
+    except ImportError:
+        try:
+            import sounddevice as sd
+            sd.stop()
+        except Exception:
+            pass
+    except Exception:
+        pass

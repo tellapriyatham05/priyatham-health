@@ -16,7 +16,7 @@ VOCAB_PHRASES = """
 jarvis hey okay hi hello please can you could would will
 what is the time what's time now tell me current date day today tomorrow battery charge charging level
 how much ram memory cpu usage processor storage disk space free left system status report diagnostics ip address
-open close quit launch start run show go to switch hide yourself come here back appear stay go away disappear
+open close quit launch start run show go to switch hide yourself come here back appear stay go away disappear exit bye goodbye completely
 volume up down mute unmute louder quieter softer increase decrease raise lower set turn to by percent max maximum
 minimum brightness brighter dimmer dim screen wifi bluetooth on off enable disable internet airplane mode night light
 play pause stop resume next previous song track music video youtube spotify search google for find look up
@@ -238,9 +238,15 @@ def parse(raw):
         return Command("empty")
     m = None
 
-    if _m(r"(?:stop|cancel|never ?mind|nothing|that's all|thats all|that is all|close|exit|dismiss|go to sleep|sleep jarvis|"
-          r"goodbye|bye|bye bye|shut up|be quiet|quiet|no thanks|no thank you|no)", t):
+    if _m(r"(?:(?:quit|exit|close|shut down|turn off)(?: jarvis| yourself)?(?: app| application)? ?completely|"
+          r"(?:quit|exit|close|shut down) (?:the )?jarvis (?:app|application|program)|close the app)", t):
+        return Command("exit_app")
+    if _m(r"(?:stop|cancel|never ?mind|nothing|shut up|be quiet|quiet|no thanks|no thank you|no)", t):
         return Command("stop")
+    if _m(r"(?:quit|quit yourself|exit|exit yourself|close|close yourself|close jarvis|exit jarvis|quit jarvis|"
+          r"that's all|thats all|that is all|dismiss|go to sleep|sleep jarvis|goodbye|good bye|bye|bye bye|see you|"
+          r"see you later|you may go|get out|out)", t):
+        return Command("hide")
     if _m(r"(?:turn (?:yourself )?off(?: yourself)?|turn off jarvis|stop listening|go offline|shut yourself down|"
           r"switch (?:yourself )?off|sleep mode|go to sleep mode|power down|deactivate(?: yourself)?|mute yourself|"
           r"stop jarvis|jarvis stop listening|disable yourself)", t):

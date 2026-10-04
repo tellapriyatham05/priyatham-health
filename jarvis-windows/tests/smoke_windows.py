@@ -129,7 +129,9 @@ for phrase, want in (("what is the time", "time"), ("what's the time now", "time
 
     def accurate():
         segs, _ = whisper.transcribe(noisy.astype(np.float32) / 32768.0, language="en", beam_size=5, without_timestamps=True)
-        return " ".join(s_.text for s_ in segs if s_.no_speech_prob < 0.6 and s_.avg_logprob > -1.0).strip()
+        acc = " ".join(s_.text for s_ in segs if not (s_.no_speech_prob > 0.6 and s_.avg_logprob < -1.0)).strip()
+        print(f"        accurate heard {acc!r}")
+        return acc
     picked = choose(quick, grammar, accurate)
     got = parse(picked).intent
     ok = got == want

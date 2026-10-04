@@ -268,7 +268,8 @@ class Listener:
                     without_timestamps=True, condition_on_previous_text=False,
                     initial_prompt="Jarvis commands: what is the time, what's the date, open Chrome, open VS Code, "
                                    "volume up, wifi off, play music on YouTube, set a timer for five minutes, hide.")
-                good = [s_ for s_ in segs if s_.no_speech_prob < 0.6 and s_.avg_logprob > -1.0]
+                # Whisper's own rule: drop a segment only when it is both probably silence and low-confidence.
+                good = [s_ for s_ in segs if not (s_.no_speech_prob > 0.6 and s_.avg_logprob < -1.0)]
                 text = " ".join(s_.text for s_ in good).strip()
                 if text.lower().strip(" .!") in ("you", "thank you", "thanks for watching", "thank you for watching", ""):
                     text = ""

@@ -13,7 +13,7 @@ from . import stats, winactions as wa
 from .audio import Listener
 from .brain import Brain
 from .companion import Companion
-from .parser import parse
+from .parser import VOCAB, parse
 from .store import Store, data_dir
 from .voice import Voice
 
@@ -54,9 +54,31 @@ FIXED_WORD_INTENTS = {"stop", "yes", "thanks", "hello", "how_are_you", "who_are_
                       "cancel_reminders", "recycle_bin", "voice"}
 
 
+FIXED_WORD_INTENTS |= {"go_offline"}
+
+
 def quick_enough(text):
     c = parse(text)
     return c.intent in FIXED_WORD_INTENTS and not (c.intent == "screen_time" and c.get("app"))
+
+
+def known(text):
+    return bool(text) and parse(text).intent not in ("unknown", "empty")
+
+
+def choose(quick, grammar, accurate):
+    """Picks what you most likely said from three recognisers:
+    quick (free dictation), grammar (JARVIS's own words only) and accurate (Whisper, computed on demand)."""
+    if quick and quick_enough(quick):
+        return quick
+    a = accurate()
+    if known(a):
+        return a
+    if known(grammar):
+        return grammar
+    if known(quick):
+        return quick
+    return a or quick or grammar
 
 
 class Bus(QObject):
@@ -90,6 +112,8 @@ class Jarvis(QObject):
         self.listener = Listener(self.store, on_wake=self.bus.wake.emit, on_partial=self.bus.partial.emit,
                                  on_final=self.bus.final.emit, on_level=self.bus.mic.emit, on_status=self.bus.status.emit,
                                  understood=quick_enough)
+        self.listener.choose = choose
+        self.listener.vocabulary = self.vocabulary
         self.active = False
         self.followup = False
         self.misses = 0
@@ -117,11 +141,11 @@ class Jarvis(QObject):
         self.menu = QMenu()
         for label, fn in (("Talk to JARVIS    Ctrl+Alt+J", self.talk), ("Show JARVIS", self.companion.appear),
                           ("Hide JARVIS", self.hide), ("Settings", self.show_settings),
-                          ("Pause listening", self.toggle_pause), ("Quit", self.quit)):
+                          ("Stop listening", self.toggle_pause), ("Quit", self.quit)):
             act = QAction(label, self.menu)
             act.triggered.connect(fn)
             self.menu.addAction(act)
-            if label.startswith("Pause"):
+            if label.startswith("Stop listening"):
                 self.pause_action = act
         self.tray.setContextMenu(self.menu)
         self.tray.activated.connect(lambda reason: self.talk() if reason == QSystemTrayIcon.Trigger else None)
@@ -136,6 +160,16 @@ class Jarvis(QObject):
             wa.set_startup(bool(self.store.get("start_with_windows")), sys.executable)
         if not background or not os.path.exists(os.path.join(data_dir(), ".welcomed")):
             QTimer.singleShot(400, self.show_settings)
+
+    def vocabulary(self):
+        """Command words plus the names JARVIS knows on this laptop (apps, projects, memory, routines)."""
+        words = list(VOCAB)
+        names = list(self.apps.items.keys())[:400] + list(self.store.projects().keys()) + list(self.store.routines().keys())
+        mem = self.store.get("memory")
+        names += list(mem.keys()) + [v for v in mem.values() if len(v) < 40]
+        for n in names:
+            words += [w for w in "".join(c if c.isalnum() else " " for c in n.lower()).split() if w.isalpha() and len(w) > 1]
+        return words
 
     # ---------------------------------------------------------------- conversation
     def notify(self, text):
@@ -153,6 +187,7 @@ class Jarvis(QObject):
         if self.listener.model is None:
             self.notify("Still loading speech models, one moment...")
             return
+        self.set_listening(True)
         self.listener.listen_command(False)
         self.on_wake()
 
@@ -215,7 +250,11 @@ class Jarvis(QObject):
         def done():
             if reply.after and reply.wait:
                 threading.Thread(target=reply.after, daemon=True).start()
-            if reply.hide:
+            if reply.offline:
+                self.end_conversation()
+                self.companion.leave()
+                self.set_listening(False)
+            elif reply.hide:
                 self.end_conversation()
                 self.companion.leave()
             elif reply.close:
@@ -277,8 +316,15 @@ class Jarvis(QObject):
 
     # ---------------------------------------------------------------- tray actions
     def toggle_pause(self):
-        self.listener.paused = not self.listener.paused
-        self.pause_action.setText("Resume listening" if self.listener.paused else "Pause listening")
+        self.set_listening(self.listener.paused)
+
+    def set_listening(self, on):
+        """Turns the wake word on or off (Ctrl+Alt+J, the tray icon and clicking still work when off)."""
+        self.listener.paused = not on
+        self.pause_action.setText("Stop listening" if on else "Start listening")
+        self.tray.setToolTip("JARVIS" if on else "JARVIS (not listening)")
+        if self.settings:
+            self.settings.refresh_status()
 
     def show_settings(self):
         from .settings_ui import SettingsWindow

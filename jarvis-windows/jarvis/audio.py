@@ -78,6 +78,11 @@ class Listener:
         self._followup = False
         # Returns True when JARVIS already understands the quick transcript (then Whisper is skipped).
         self.understood = understood or (lambda text: False)
+        # choose(candidates) picks the transcript to act on; vocabulary() lists JARVIS's own words.
+        self.choose = None
+        self.vocabulary = lambda: []
+        self._grec = None
+        self._grammar_key = None
 
     # ---------------------------------------------------------------- setup
     def load(self):
@@ -123,7 +128,27 @@ class Listener:
         self._rec = self._KaldiRecognizer(self.model, SAMPLE_RATE) if self.model else None
         if self._rec:
             self._rec.SetWords(False)
+        self._grec = self._grammar_recognizer()
         self.mode = "command"
+
+    def _grammar_recognizer(self):
+        """A second recogniser that may only use JARVIS's own command words. Far more accurate for
+        commands like "what is the time" than free dictation, especially with an accent or noise."""
+        if not self.model:
+            return None
+        try:
+            words = sorted({w for w in self.vocabulary() if w})
+            key = hash(tuple(words))
+            if self._grec_cached is None or key != self._grammar_key:
+                self._grec_cached = self._KaldiRecognizer(self.model, SAMPLE_RATE, json.dumps(words + ["[unk]"]))
+                self._grammar_key = key
+            else:
+                self._grec_cached.Reset()
+            return self._grec_cached
+        except Exception:
+            return None
+
+    _grec_cached = None
 
     def back_to_wake(self):
         if self.wake:
@@ -196,6 +221,11 @@ class Listener:
         if level > 0.06 and now - self._cmd_started > 0.25:   # ignore the wake chime
             self._last_voice = now
             self._heard_voice = True
+        if self._grec is not None:
+            try:
+                self._grec.AcceptWaveform(frame.tobytes())
+            except Exception:
+                self._grec = None
         if self._rec and self._rec.AcceptWaveform(frame.tobytes()):
             text = json.loads(self._rec.Result()).get("text", "")
             if text.strip():
@@ -215,16 +245,41 @@ class Listener:
     def _finish(self, vosk_text):
         self.mode = "muted"
         audio = np.concatenate(self._cmd_audio) if self._cmd_audio else np.zeros(0, np.int16)
-        text = vosk_text.strip()
-        quick_ok = bool(text) and self.understood(text)
-        if self.whisper is not None and not quick_ok and len(audio) > SAMPLE_RATE * 0.4 and (text or self._heard_voice):
+        quick = vosk_text.strip()
+        grammar = ""
+        if self._grec is not None:
             try:
-                segs, _ = self.whisper.transcribe(audio.astype(np.float32) / 32768.0, language="en", beam_size=3,
-                                                  vad_filter=False, without_timestamps=True,
-                                                  initial_prompt="Jarvis, open VS Code. Volume up. Play music on YouTube.")
-                better = " ".join(s.text for s in segs).strip()
-                if better and not better.lower().startswith(("thank you for watching", "you")):
-                    text = better
+                grammar = json.loads(self._grec.FinalResult()).get("text", "").replace("[unk]", "").strip()
+                grammar = " ".join(grammar.split())
+            except Exception:
+                grammar = ""
+        cache = {}
+
+        def accurate():
+            """Whisper transcript (computed at most once, only when needed)."""
+            if "a" in cache:
+                return cache["a"]
+            cache["a"] = ""
+            if self.whisper is None or len(audio) < SAMPLE_RATE * 0.4 or not (quick or grammar or self._heard_voice):
+                return ""
+            try:
+                segs, _ = self.whisper.transcribe(
+                    audio.astype(np.float32) / 32768.0, language="en", beam_size=5, vad_filter=False,
+                    without_timestamps=True, condition_on_previous_text=False,
+                    initial_prompt="Jarvis commands: what is the time, what's the date, open Chrome, open VS Code, "
+                                   "volume up, wifi off, play music on YouTube, set a timer for five minutes, hide.")
+                good = [s_ for s_ in segs if s_.no_speech_prob < 0.6 and s_.avg_logprob > -1.0]
+                text = " ".join(s_.text for s_ in good).strip()
+                if text.lower().strip(" .!") in ("you", "thank you", "thanks for watching", "thank you for watching", ""):
+                    text = ""
+                cache["a"] = text
             except Exception:
                 pass
-        self.on_final(text)
+            return cache["a"]
+
+        if self.choose:
+            text = self.choose(quick, grammar, accurate)
+        else:
+            text = quick if quick and self.understood(quick) else (accurate() or quick)
+        self.last_candidates = {"quick": quick, "grammar": grammar, "accurate": cache.get("a", "")}
+        self.on_final(text or "")

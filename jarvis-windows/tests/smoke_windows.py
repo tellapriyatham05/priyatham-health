@@ -109,5 +109,32 @@ for phrase in ("open notepad", "set a timer for five minutes", "volume up", "pau
     print(f"[speed] {phrase!r}: quick {t_quick*1000:.0f} ms ({quick!r}, trusted={quick_enough(quick)}), "
           f"accurate {t_whisper*1000:.0f} ms ({accurate!r})")
 
+# Noisy commands through all three recognisers and JARVIS's chooser.
+from jarvis.main import choose
+from jarvis.parser import VOCAB
+gmodel = Model(resource("models", "vosk-model-small-en-in-0.4"))
+rng = np.random.default_rng(1)
+music = synth("I'm going to show you how to do it, watch closely, this is the best part of the video", tmp)
+for phrase, want in (("what is the time", "time"), ("what's the time now", "time"), ("turn off yourself", "go_offline"),
+                     ("hide", "hide"), ("volume down", "volume"), ("what is the date today", "date"), ("battery", "battery")):
+    clean = synth(phrase, tmp).astype(np.float32)
+    bgm = np.resize(music, len(clean)).astype(np.float32) * 0.25            # a video playing quietly behind you
+    noisy = np.clip(clean + bgm + rng.normal(0, 600, len(clean)), -32768, 32767).astype(np.int16)
+    free = KaldiRecognizer(gmodel, 16000)
+    free.AcceptWaveform(noisy.tobytes())
+    quick = json.loads(free.FinalResult())["text"]
+    gram = KaldiRecognizer(gmodel, 16000, json.dumps(VOCAB + ["[unk]"]))
+    gram.AcceptWaveform(noisy.tobytes())
+    grammar = " ".join(json.loads(gram.FinalResult())["text"].replace("[unk]", "").split())
+
+    def accurate():
+        segs, _ = whisper.transcribe(noisy.astype(np.float32) / 32768.0, language="en", beam_size=5, without_timestamps=True)
+        return " ".join(s_.text for s_ in segs if s_.no_speech_prob < 0.6 and s_.avg_logprob > -1.0).strip()
+    picked = choose(quick, grammar, accurate)
+    got = parse(picked).intent
+    ok = got == want
+    fails += not ok
+    print(f"[noisy] {'ok ' if ok else 'BAD'} said {phrase!r} | quick {quick!r} | words {grammar!r} -> {picked!r} ({got})")
+
 print("SMOKE", "FAILED" if fails else "PASSED")
 sys.exit(1 if fails else 0)

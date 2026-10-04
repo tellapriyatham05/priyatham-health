@@ -10,6 +10,32 @@ ON = r"(?:on|enable|start|activate|connect)"
 OFF = r"(?:off|disable|stop|deactivate|disconnect)"
 
 
+# Every word JARVIS's commands use. The command-word recogniser is limited to these (plus app,
+# project and memory names added at runtime), which makes short commands far more reliable.
+VOCAB_PHRASES = """
+jarvis hey okay hi hello please can you could would will
+what is the time what's time now tell me current date day today tomorrow battery charge charging level
+how much ram memory cpu usage processor storage disk space free left system status report diagnostics ip address
+open close quit launch start run show go to switch hide yourself come here back appear stay go away disappear
+volume up down mute unmute louder quieter softer increase decrease raise lower set turn to by percent max maximum
+minimum brightness brighter dimmer dim screen wifi bluetooth on off enable disable internet airplane mode night light
+play pause stop resume next previous song track music video youtube spotify search google for find look up
+set a an timer alarm reminder remind me in at am pm minutes minute seconds hours hour morning evening night tonight
+cancel all my reminders timers list lock laptop computer pc shut down shutdown restart sleep sign out log
+screenshot take type write read clipboard copy paste save select undo new tab window minimize maximize desktop
+remember forget what do you know notes note that
+yes no yeah sure okay confirm cancel thank thanks you good job never mind that's all
+screen time used today how long have i spent
+coding study good night morning break mode routine
+offline turn off yourself stop listening go wake
+vs code chrome edge notepad calculator terminal explorer file files downloads documents pictures music videos
+settings word excel powerpoint whatsapp instagram gmail github linkedin netflix amazon flipkart maps drive
+recycle bin empty voice faster slower robot calm natural change
+one two three four five six seven eight nine ten eleven twelve fifteen twenty thirty forty fifty sixty
+"""
+VOCAB = sorted(set(VOCAB_PHRASES.split()))
+
+
 class Command(dict):
     def __init__(self, intent, **slots):
         super().__init__({k: v.strip() if isinstance(v, str) else v for k, v in slots.items() if v not in (None, "")})
@@ -215,6 +241,10 @@ def parse(raw):
     if _m(r"(?:stop|cancel|never ?mind|nothing|that's all|thats all|that is all|close|exit|dismiss|go to sleep|sleep jarvis|"
           r"goodbye|bye|bye bye|shut up|be quiet|quiet|no thanks|no thank you|no)", t):
         return Command("stop")
+    if _m(r"(?:turn (?:yourself )?off(?: yourself)?|turn off jarvis|stop listening|go offline|shut yourself down|"
+          r"switch (?:yourself )?off|sleep mode|go to sleep mode|power down|deactivate(?: yourself)?|mute yourself|"
+          r"stop jarvis|jarvis stop listening|disable yourself)", t):
+        return Command("go_offline")
     if _m(r"(?:hide|hide yourself|go hide|go away|disappear|vanish|leave|dismiss yourself|you can go|get lost|go back|"
           r"minimi[sz]e yourself|hide jarvis|jarvis hide|fly away)", t):
         return Command("hide")

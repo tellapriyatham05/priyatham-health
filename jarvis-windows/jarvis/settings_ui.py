@@ -193,7 +193,10 @@ class SettingsWindow(QWidget):
         row.addWidget(self._button("Talk now", self.j.talk, primary=True))
         row.addWidget(self._button("Show JARVIS", self.j.companion.appear))
         row.addWidget(self._button("Hide JARVIS", self.j.hide))
+        self.listen_btn = self._button("Stop listening", lambda: self.j.set_listening(self.j.listener.paused))
+        row.addWidget(self.listen_btn)
         row.addStretch()
+        row.addWidget(self._button("Quit JARVIS", self._quit))
         cv.addLayout(row)
 
         cv = self._card(v)
@@ -367,9 +370,19 @@ class SettingsWindow(QWidget):
         return w
 
     # ---------------------------------------------------------------- refresh
+    def _quit(self):
+        if QMessageBox.question(self, "JARVIS", "Quit JARVIS? It won't listen until you open it again.") == QMessageBox.Yes:
+            self.j.quit()
+
     def refresh_status(self):
         st = self.j.engine_status
-        if st == "listening":
+        paused = getattr(self.j.listener, "paused", False)
+        if hasattr(self, "listen_btn"):
+            self.listen_btn.setText("Start listening" if paused else "Stop listening")
+        if paused:
+            self.status.setText("<span style='color:#9CA3AF'>●</span>&nbsp; Not listening for “Jarvis”. "
+                                "Ctrl+Alt+J or “Talk now” still work.")
+        elif st == "listening":
             self.status.setText("<span style='color:#16A34A'>●</span>&nbsp; Ready. Listening for “Jarvis”.")
         else:
             self.status.setText(f"<span style='color:#D97706'>●</span>&nbsp; {st}")

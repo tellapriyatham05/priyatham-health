@@ -12,9 +12,10 @@ class Reply:
     """speech: what to say. after: the action. wait: run the action only after speaking (lock, shut down).
     close: end the conversation. ask: listen again for an answer. hide/show: the on-screen character."""
 
-    def __init__(self, speech="", after=None, close=False, ask=False, display=None, wait=False, hide=False, show=False):
+    def __init__(self, speech="", after=None, close=False, ask=False, display=None, wait=False, hide=False, show=False,
+                 offline=False):
         self.speech, self.after, self.close, self.ask, self.display = speech, after, close, ask, display
-        self.wait, self.hide, self.show = wait, hide, show
+        self.wait, self.hide, self.show, self.offline = wait, hide, show, offline
 
 
 class Brain:
@@ -117,6 +118,9 @@ class Brain:
         i = c.intent
         if i == "stop":
             return Reply("", close=True)
+        if i == "go_offline":
+            return self.r("Going offline{sir}. Press Ctrl+Alt+J or click my icon when you need me.", close=True, hide=True,
+                          offline=True)
         if i == "hide":
             return self.r("Going{sir}. Call me when you need me.", close=True, hide=True)
         if i == "show":

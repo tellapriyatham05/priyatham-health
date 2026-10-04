@@ -9,8 +9,12 @@ from .parser import Command, normalize, parse, score
 
 
 class Reply:
-    def __init__(self, speech="", after=None, close=False, ask=False, display=None):
+    """speech: what to say. after: the action. wait: run the action only after speaking (lock, shut down).
+    close: end the conversation. ask: listen again for an answer. hide/show: the on-screen character."""
+
+    def __init__(self, speech="", after=None, close=False, ask=False, display=None, wait=False, hide=False, show=False):
         self.speech, self.after, self.close, self.ask, self.display = speech, after, close, ask, display
+        self.wait, self.hide, self.show = wait, hide, show
 
 
 class Brain:
@@ -51,7 +55,7 @@ class Brain:
             if kind == "confirm_power":
                 if c.intent == "yes":
                     return self.r({"shutdown": "Shutting down in five seconds{sir}.", "restart": "Restarting in five seconds{sir}.",
-                                   "logoff": "Signing out{sir}."}[value], after=lambda: wa.power(value), close=True)
+                                   "logoff": "Signing out{sir}."}[value], after=lambda: wa.power(value), close=True, wait=True)
                 return self.r("Cancelled{sir}.", close=True)
 
         routine = self._match_routine(text)
@@ -113,6 +117,10 @@ class Brain:
         i = c.intent
         if i == "stop":
             return Reply("", close=True)
+        if i == "hide":
+            return self.r("Going{sir}. Call me when you need me.", close=True, hide=True)
+        if i == "show":
+            return self.r("Right here{sir}.", show=True, ask=False)
         if i == "yes":
             return self.r("Yes{sir}?", ask=True)
         if i == "thanks":
@@ -162,9 +170,9 @@ class Brain:
         if i == "power":
             a = c["action"]
             if a == "lock":
-                return self.r("Locking{sir}.", after=lambda: wa.power("lock"), close=True)
+                return self.r("Locking{sir}.", after=lambda: wa.power("lock"), close=True, wait=True)
             if a == "sleep":
-                return self.r("Going to sleep{sir}.", after=lambda: wa.power("sleep"), close=True)
+                return self.r("Going to sleep{sir}.", after=lambda: wa.power("sleep"), close=True, wait=True)
             self.pending = ("confirm_power", a)
             word = {"shutdown": "shut down", "restart": "restart", "logoff": "sign out"}[a]
             return self.r(f"Are you sure you want me to {word} the laptop{{sir}}?", ask=True)

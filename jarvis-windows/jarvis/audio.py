@@ -57,7 +57,7 @@ class WakeWord:
 class Listener:
     """Owns the microphone. Calls on_wake() and on_partial/on_final(text) from its thread."""
 
-    def __init__(self, store, on_wake, on_partial, on_final, on_level, on_status):
+    def __init__(self, store, on_wake, on_partial, on_final, on_level, on_status, understood=None):
         self.store = store
         self.on_wake, self.on_partial, self.on_final = on_wake, on_partial, on_final
         self.on_level, self.on_status = on_level, on_status
@@ -76,6 +76,8 @@ class Listener:
         self._heard_voice = False
         self._rec = None
         self._followup = False
+        # Returns True when JARVIS already understands the quick transcript (then Whisper is skipped).
+        self.understood = understood or (lambda text: False)
 
     # ---------------------------------------------------------------- setup
     def load(self):
@@ -183,14 +185,15 @@ class Listener:
             if hit:
                 self.wake.reset()
                 self.kws.Reset()
-                self.mode = "muted"
+                # Start recording the command straight away ("Jarvis, open notepad" in one breath).
+                self.listen_command(False)
                 self.on_wake()
             return
         # Command mode: collect audio until a pause after speech.
         self.on_level(min(1.0, level))
         self._cmd_audio.append(frame)
         now = time.time()
-        if level > 0.06:
+        if level > 0.06 and now - self._cmd_started > 0.25:   # ignore the wake chime
             self._last_voice = now
             self._heard_voice = True
         if self._rec and self._rec.AcceptWaveform(frame.tobytes()):
@@ -205,7 +208,7 @@ class Listener:
                 self._last_voice = now
                 self.on_partial(partial)
         waited = now - self._cmd_started
-        if (self._heard_voice and now - self._last_voice > 1.1) or waited > 12 or (not self._heard_voice and waited > (5 if self._followup else 7)):
+        if (self._heard_voice and now - self._last_voice > 0.75) or waited > 12 or (not self._heard_voice and waited > (5 if self._followup else 7)):
             text = json.loads(self._rec.FinalResult()).get("text", "") if self._rec else ""
             self._finish(text)
 
@@ -213,7 +216,8 @@ class Listener:
         self.mode = "muted"
         audio = np.concatenate(self._cmd_audio) if self._cmd_audio else np.zeros(0, np.int16)
         text = vosk_text.strip()
-        if self.whisper is not None and len(audio) > SAMPLE_RATE * 0.4 and (text or self._heard_voice):
+        quick_ok = bool(text) and self.understood(text)
+        if self.whisper is not None and not quick_ok and len(audio) > SAMPLE_RATE * 0.4 and (text or self._heard_voice):
             try:
                 segs, _ = self.whisper.transcribe(audio.astype(np.float32) / 32768.0, language="en", beam_size=3,
                                                   vad_filter=False, without_timestamps=True,

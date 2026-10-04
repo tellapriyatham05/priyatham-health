@@ -19,7 +19,7 @@ CASES = [
     ("take a screenshot", "screenshot"), ("show desktop", "window"), ("type hello world", "type"), ("read my clipboard", "clipboard"),
     ("new tab", "keys"), ("call Priyatham", "phone_only"), ("what is the capital of france", "search"), ("thank you", "thanks"),
     ("stop", "stop"), ("yes", "yes"), ("Hey Jarvis", "empty"), ("open wifi settings", "open_settings"), ("switch to robot voice", "voice"),
-    ("who are you", "who_are_you"), ("cancel all reminders", "cancel_reminders"), ("empty the recycle bin", "recycle_bin"),
+    ("who are you", "who_are_you"), ("Jarvis hide", "hide"), ("hide", "hide"), ("go away", "hide"), ("come here", "show"), ("cancel all reminders", "cancel_reminders"), ("empty the recycle bin", "recycle_bin"),
 ]
 bad = 0
 for text, want in CASES:

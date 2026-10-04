@@ -4,9 +4,15 @@ Two apps: **JARVIS for Windows** (laptop, below) and **JARVIS for Android** (pho
 
 ## JARVIS for Windows
 
-Say **"Hey Jarvis"** (or just "Jarvis", or press **Ctrl+Alt+J**): an armoured red-and-gold suit flies across your
-whole screen, lands in the centre on a glowing pad, and a HUD opens around it with the time, reminders, CPU, RAM,
-disk, battery, network and screen time. It talks back in a robotic voice and does what you ask. Offline, no API keys.
+Say **"Jarvis"** (or "Hey Jarvis", click the character, or press **Ctrl+Alt+J**): your character flies across the
+screen and lands in the corner, like a desktop companion. A small, clean card next to it shows what you said and the
+reply. It stays there while you work; say **"Jarvis, hide"** and it flies away. Offline, no API keys.
+
+- **Your own character:** Settings → Character → *Choose image…* (for example your Iron Man picture). The background
+  is removed on your laptop and the figure is animated: fly-in, floating, glowing while it talks. Drag it anywhere.
+- **Voice:** Windows' offline voices, preferring the Indian-English male voice (Microsoft Ravi) when installed.
+- **Fast:** recording starts the moment you say "Jarvis", actions start while JARVIS is still speaking, and the slower
+  Whisper double-check only runs when the quick recogniser wasn't understood.
 
 **Download:** [JARVIS-Windows.zip](https://github.com/tellapriyatham05/priyatham-health/releases/tag/jarvis-windows-latest)
 → unzip → run `JARVIS.exe` (SmartScreen: More info → Run anyway). Details in `jarvis-windows/README-WINDOWS.txt`.
@@ -15,8 +21,8 @@ Commands: open apps/projects/folders/websites, close apps, coding/study/good-nig
 Wi-Fi and Bluetooth, media keys, YouTube and Google, timers, reminders, alarms, memory ("remember MediaAI is my main
 project"), screen time and app limits, lock/sleep/shut down (asks first), screenshot, type text, read clipboard.
 
-Built with Python (PySide6 overlay, openWakeWord + Vosk + Whisper offline speech, Windows SAPI voice) by
-`jarvis-windows/build_windows.ps1`; GitHub Actions builds and publishes the zip on every push.
+Built with Python (PySide6, openWakeWord + Vosk + Whisper offline speech, U²-Net background removal, Windows SAPI
+voices) by `jarvis-windows/build_windows.ps1`; GitHub Actions builds, tests and publishes the zip on every push.
 
 ---
 

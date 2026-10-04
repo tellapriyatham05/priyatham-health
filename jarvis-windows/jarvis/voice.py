@@ -1,5 +1,6 @@
-"""JARVIS's voice: Windows' built-in offline voices (SAPI) plus a robotic filter.
-Reports loudness while talking so the suit's eyes and reactor pulse in sync."""
+"""JARVIS's voice: Windows' built-in offline voices (SAPI, including the newer "OneCore" voices such
+as Microsoft Ravi, Indian English male), with an optional robotic filter. Reports loudness while
+talking so the character glows in sync."""
 import os
 import queue
 import tempfile
@@ -12,10 +13,36 @@ import numpy as np
 PRESETS = {  # ring-mod mix, ring Hz, comb delay ms, comb feedback, pitch shift (semitones)
     "classic": (0.18, 68.0, 6.0, 0.32, -1.0),
     "robot": (0.55, 52.0, 9.0, 0.45, -3.0),
+    "natural": (0.0, 0.0, 0.0, 0.0, 0.0),
     "calm": (0.0, 0.0, 0.0, 0.0, 0.0),
     "professional": (0.0, 0.0, 0.0, 0.0, 0.0),
 }
-PREFERRED = ("ravi", "george", "david", "mark", "james", "richard")
+PREFERRED = ("ravi", "prabhat", "hemant", "george", "mark", "david", "james", "richard")
+ONECORE = r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices"
+
+
+def _tokens():
+    """(token, description) for every installed voice: classic SAPI voices and OneCore voices."""
+    import win32com.client
+    out, seen = [], set()
+    cats = [None, ONECORE]
+    for cat_id in cats:
+        try:
+            if cat_id is None:
+                toks = win32com.client.Dispatch("SAPI.SpVoice").GetVoices()
+            else:
+                cat = win32com.client.Dispatch("SAPI.SpObjectTokenCategory")
+                cat.SetId(cat_id, False)
+                toks = cat.EnumerateTokens()
+            for i in range(toks.Count):
+                t = toks.Item(i)
+                d = t.GetDescription()
+                if d not in seen:
+                    seen.add(d)
+                    out.append((t, d))
+        except Exception:
+            continue
+    return out
 
 
 def robotize(x, rate, mix, hz, comb_ms, fb):
@@ -45,25 +72,23 @@ def envelope(x, block):
 def _sapi_voice(name=""):
     import win32com.client
     voice = win32com.client.Dispatch("SAPI.SpVoice")
-    tokens = voice.GetVoices()
-    chosen = None
-    descs = [(tokens.Item(i), tokens.Item(i).GetDescription()) for i in range(tokens.Count)]
-    if name:
-        chosen = next((t for t, d in descs if d == name), None)
+    descs = _tokens()
+    chosen = next((t for t, d in descs if d == name), None) if name else None
     if chosen is None:
         for key in PREFERRED:
             chosen = next((t for t, d in descs if key in d.lower()), None)
             if chosen is not None:
                 break
     if chosen is not None:
-        voice.Voice = chosen
+        try:
+            voice.Voice = chosen
+        except Exception:
+            pass
     return voice
 
 
 def list_voices():
-    import win32com.client
-    tokens = win32com.client.Dispatch("SAPI.SpVoice").GetVoices()
-    return [tokens.Item(i).GetDescription() for i in range(tokens.Count)]
+    return [d for _t, d in _tokens()]
 
 
 def synth_to_wav(text, path, voice_name="", rate=1.0):

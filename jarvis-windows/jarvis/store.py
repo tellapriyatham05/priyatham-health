@@ -7,14 +7,22 @@ import threading
 DEFAULTS = {
     "user_title": "sir",
     "style": "jarvis",            # jarvis | friendly | short
-    "voice_mode": "classic",      # classic | robot | calm | professional
+    "voice_mode": "natural",      # natural | classic | robot (natural = no filter)
     "voice_name": "",             # SAPI voice name ("" = best male English voice)
     "speech_rate": 1.0,
     "wake_threshold": 0.45,       # "Hey Jarvis" detector
     "wake_plain_jarvis": True,    # also wake on "Jarvis" alone
     "stt_model": "en-in",         # en-in | en-us
     "accurate_mode": True,        # use Whisper for the final transcript when available
-    "greeting": "Yes, sir?",
+    "greeting": "",               # spoken greeting on wake ("" = just a soft chime, fastest)
+    "chime": True,
+    "char_image": "",             # your character picture
+    "char_cutout": "",            # the same picture with its background removed
+    "char_remove_bg": True,
+    "char_size": "medium",        # small | medium | large
+    "char_side": "right",         # right | left
+    "char_pos": [],               # where you dragged it
+    "config_version": 2,
     "start_with_windows": True,
     "fly_animation": True,
     "memory": {},
@@ -48,7 +56,11 @@ class Store:
         self.data = dict(DEFAULTS)
         try:
             with open(self.path, encoding="utf-8") as f:
-                self.data.update(json.load(f))
+                saved = json.load(f)
+            if saved.get("config_version", 1) < 2:
+                # v1 → v2: natural Indian-English voice and no spoken greeting by default.
+                saved.update(voice_mode="natural", greeting="", voice_name="", config_version=2)
+            self.data.update(saved)
         except (OSError, ValueError):
             pass
 

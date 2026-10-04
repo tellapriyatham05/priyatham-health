@@ -215,6 +215,11 @@ def parse(raw):
     if _m(r"(?:stop|cancel|never ?mind|nothing|that's all|thats all|that is all|close|exit|dismiss|go to sleep|sleep jarvis|"
           r"goodbye|bye|bye bye|shut up|be quiet|quiet|no thanks|no thank you|no)", t):
         return Command("stop")
+    if _m(r"(?:hide|hide yourself|go hide|go away|disappear|vanish|leave|dismiss yourself|you can go|get lost|go back|"
+          r"minimi[sz]e yourself|hide jarvis|jarvis hide|fly away)", t):
+        return Command("hide")
+    if _m(r"(?:show yourself|show up|come here|come back|appear|come out|where are you|stay|stay here|stay on screen)", t):
+        return Command("show")
     if _m(r"(?:yes|yeah|yep|sure|do it|confirm|go ahead|yes please|of course|okay|ok)", t):
         return Command("yes")
     if _m(r"(?:thank you|thanks|thank you jarvis|thanks a lot|good job|well done|nice)", t):

@@ -18,6 +18,10 @@ if (-not (Test-Path "models\whisper-base.en\model.bin")) {
   Remove-Item -Recurse -Force "models\whisper-base.en\.cache" -ErrorAction SilentlyContinue
 }
 
+if (-not (Test-Path "models\u2netp.onnx")) {
+  Invoke-WebRequest "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx" -OutFile "models\u2netp.onnx"
+}
+
 python -c "from PIL import Image, ImageDraw; im=Image.new('RGBA',(256,256),(0,0,0,0)); d=ImageDraw.Draw(im); d.ellipse((8,8,248,248),fill=(5,11,20),outline=(0,229,255),width=14); d.polygon([(76,86),(180,86),(128,178)],fill=(180,245,255)); im.save('jarvis.ico',sizes=[(256,256),(64,64),(32,32),(16,16)])"
 
 pyinstaller --noconfirm --clean --windowed --name JARVIS --icon jarvis.ico `

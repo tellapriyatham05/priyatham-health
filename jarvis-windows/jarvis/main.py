@@ -1,34 +1,21 @@
-"""JARVIS for Windows: entry point. Tray icon, hotkey, reminders, settings and the conversation loop."""
+"""JARVIS for Windows: tray icon, hotkey, reminders and the conversation loop."""
 import os
 import sys
 import threading
 import time
 
+import numpy as np
 from PySide6.QtCore import QLockFile, QObject, QPointF, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPixmap, QPen, QPolygonF
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-                               QMenu, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSystemTrayIcon,
-                               QTabWidget, QVBoxLayout, QWidget)
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
+from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 from . import stats, winactions as wa
 from .audio import Listener
 from .brain import Brain
-from .overlay import Overlay
+from .companion import Companion
+from .parser import parse
 from .store import Store, data_dir
 from .voice import Voice
-
-APP_STYLE = """
-QWidget { background: #050B14; color: #E6FBFF; font-family: 'Bahnschrift', 'Segoe UI'; font-size: 13px; }
-QLabel#title { color: #00E5FF; font-size: 26px; letter-spacing: 6px; font-weight: bold; }
-QLabel#dim { color: #7FB8C4; }
-QPushButton { background: #00E5FF; color: #001018; border: none; border-radius: 8px; padding: 8px 14px; font-weight: bold; }
-QPushButton:hover { background: #7FF3FF; }
-QLineEdit, QPlainTextEdit, QComboBox { background: #0A2230; border: 1px solid #0E4A5C; border-radius: 6px; padding: 6px; }
-QTabBar::tab { background: #0A1A26; color: #7FB8C4; padding: 8px 16px; }
-QTabBar::tab:selected { color: #FFC857; border-bottom: 2px solid #FFC857; }
-QTabWidget::pane { border: 1px solid #0E4A5C; }
-QCheckBox::indicator { width: 18px; height: 18px; }
-"""
 
 
 def make_icon(size=64):
@@ -36,15 +23,27 @@ def make_icon(size=64):
     pm.fill(Qt.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.Antialiasing)
-    p.setBrush(QColor(5, 11, 20))
-    p.setPen(QPen(QColor(0, 229, 255), size * 0.06))
-    p.drawEllipse(QPointF(size / 2, size / 2), size * 0.44, size * 0.44)
-    p.setBrush(QColor(180, 245, 255))
+    p.setBrush(QColor(37, 99, 235))
     p.setPen(Qt.NoPen)
+    p.drawEllipse(QPointF(size / 2, size / 2), size * 0.46, size * 0.46)
+    p.setBrush(QColor(255, 255, 255))
     s = size
     p.drawPolygon(QPolygonF([QPointF(s * 0.3, s * 0.34), QPointF(s * 0.7, s * 0.34), QPointF(s * 0.5, s * 0.7)]))
     p.end()
     return QIcon(pm)
+
+
+def chime():
+    """A short, soft two-note sound so you know JARVIS is listening."""
+    try:
+        import sounddevice as sd
+        rate = 22050
+        t = np.arange(int(rate * 0.09)) / rate
+        fade = np.minimum(1, np.minimum(t, t[::-1]) * 60)
+        tone = np.concatenate([np.sin(2 * np.pi * 880 * t), np.sin(2 * np.pi * 1320 * t)]) * np.concatenate([fade, fade])
+        sd.play((tone * 0.12 * 32767).astype(np.int16), rate)
+    except Exception:
+        pass
 
 
 class Bus(QObject):
@@ -59,6 +58,7 @@ class Bus(QObject):
     hotkey = Signal()
     limit = Signal(str, int)
     replied = Signal(object)
+    cutout_done = Signal(str)
 
 
 class Jarvis(QObject):
@@ -67,56 +67,56 @@ class Jarvis(QObject):
         self.app = app
         self.store = Store()
         self.bus = Bus()
+        self.icon = make_icon()
         self.apps = wa.Apps()
         self.screen_time = stats.ScreenTime(on_limit=lambda a, m: self.bus.limit.emit(a, m), limits=self.store.limits)
         self.screen_time.start()
-        self.brain = Brain(self.store, self.apps, self.screen_time, self.add_reminder,
-                           clipboard_text=lambda: QApplication.clipboard().text())
-        self.overlay = Overlay(self.store)
-        self.overlay.screen_time = self.screen_time
-        self.overlay.reminders = lambda: self.store.get("reminders")
-        self.overlay.on_hidden = self._overlay_hidden
+        self.brain = Brain(self.store, self.apps, self.screen_time, self.add_reminder)
+        self.companion = Companion(self.store)
         self.voice = Voice(self.store, on_level=lambda v: self.bus.level.emit(v))
         self.listener = Listener(self.store, on_wake=self.bus.wake.emit, on_partial=self.bus.partial.emit,
-                                 on_final=self.bus.final.emit, on_level=self.bus.mic.emit, on_status=self.bus.status.emit)
+                                 on_final=self.bus.final.emit, on_level=self.bus.mic.emit, on_status=self.bus.status.emit,
+                                 understood=lambda text: parse(text).intent not in ("unknown", "empty"))
+        self.active = False
         self.followup = False
         self.misses = 0
-        self.active = False
         self.speech_id = 0
         self.after_speech = {}
         self.engine_status = "Starting..."
+        self.settings = None
 
         b = self.bus
         b.wake.connect(self.on_wake)
+        b.hotkey.connect(self.talk)
         b.partial.connect(self.on_partial)
         b.final.connect(self.on_final)
-        b.level.connect(self.overlay.set_level)
-        b.mic.connect(self.overlay.set_mic)
+        b.replied.connect(self.on_reply)
+        b.level.connect(self.companion.set_level)
+        b.mic.connect(self.companion.set_mic)
         b.status.connect(self.on_status)
         b.spoken.connect(self._spoken)
-        b.hotkey.connect(self.on_wake)
-        b.replied.connect(self.on_reply)
-        b.limit.connect(lambda a, m: self.tray.showMessage("JARVIS", f"You've used {a} for {m} minutes today, your limit.", self.icon))
+        b.limit.connect(lambda a, m: self.notify(f"You've used {a} for {m} minutes today — that's your limit."))
+        self.companion.clicked.connect(self.talk)
+        self.companion.menu_requested.connect(self._companion_menu)
 
-        self.icon = make_icon()
         self.tray = QSystemTrayIcon(self.icon)
         self.tray.setToolTip("JARVIS")
-        menu = QMenu()
-        for label, fn in (("Talk to JARVIS (Ctrl+Alt+J)", self.on_wake), ("Settings", self.show_settings),
+        self.menu = QMenu()
+        for label, fn in (("Talk to JARVIS    Ctrl+Alt+J", self.talk), ("Show JARVIS", self.companion.appear),
+                          ("Hide JARVIS", self.hide), ("Settings", self.show_settings),
                           ("Pause listening", self.toggle_pause), ("Quit", self.quit)):
-            act = QAction(label, menu)
+            act = QAction(label, self.menu)
             act.triggered.connect(fn)
-            menu.addAction(act)
+            self.menu.addAction(act)
             if label.startswith("Pause"):
                 self.pause_action = act
-        self.tray.setContextMenu(menu)
-        self.tray.activated.connect(lambda reason: self.on_wake() if reason == QSystemTrayIcon.Trigger else None)
+        self.tray.setContextMenu(self.menu)
+        self.tray.activated.connect(lambda reason: self.talk() if reason == QSystemTrayIcon.Trigger else None)
         self.tray.show()
 
         self.reminder_timer = QTimer()
         self.reminder_timer.timeout.connect(self.check_reminders)
         self.reminder_timer.start(5000)
-        self.settings = None
         self.listener.start()
         start_hotkey(self.bus.hotkey.emit)
         if getattr(sys, "frozen", False):
@@ -125,38 +125,51 @@ class Jarvis(QObject):
             QTimer.singleShot(400, self.show_settings)
 
     # ---------------------------------------------------------------- conversation
+    def notify(self, text):
+        self.tray.showMessage("JARVIS", text, self.icon, 6000)
+
     def on_status(self, text):
         self.engine_status = text
         if self.settings:
             self.settings.refresh_status()
         if text.startswith(("Speech models failed", "Microphone problem")):
-            self.tray.showMessage("JARVIS", text, self.icon)
+            self.notify(text)
+
+    def talk(self):
+        """Clicked, hotkey or tray: start listening (the wake word path calls on_wake directly)."""
+        if self.listener.model is None:
+            self.notify("Still loading speech models, one moment...")
+            return
+        self.listener.listen_command(False)
+        self.on_wake()
 
     def on_wake(self):
-        if self.listener.model is None:
-            self.tray.showMessage("JARVIS", "Still loading speech models, one moment...", self.icon)
-            return
         self.voice.stop()
         self.active = True
+        self.followup = False
         self.misses = 0
         self.brain.pending = None
-        self.listener.mute()
-        self.overlay.appear()
+        self.companion.heard = self.companion.answer = self.companion.display = ""
+        self.companion.appear()
         greeting = self.store.get("greeting")
-        fly = 2.2 if self.store.get("fly_animation") and self.overlay.phase == "in" else 0.1
-        # Greet as the suit lands, then listen.
-        QTimer.singleShot(int(fly * 1000), lambda: self.say(greeting, lambda: self.listen(False)) if greeting else self.listen(False))
+        if greeting:
+            self.listener.mute()
+            self.say(greeting, lambda: self.listen(False))
+            return
+        if self.store.get("chime"):
+            threading.Thread(target=chime, daemon=True).start()
+        self.companion.mode = "listening"
 
     def listen(self, followup):
         if not self.active:
             return
         self.followup = followup
-        self.overlay.mode = "listening"
-        self.overlay.heard = ""
+        self.companion.mode = "listening"
+        self.companion.heard = ""
         self.listener.listen_command(followup)
 
     def on_partial(self, text):
-        self.overlay.heard = text
+        self.companion.heard = text
 
     def on_final(self, text):
         if not self.active:
@@ -164,40 +177,48 @@ class Jarvis(QObject):
         text = text.strip()
         if not text:
             if self.followup or self.misses >= 1:
-                self.close()
+                self.end_conversation()
                 return
             self.misses += 1
-            self.say(f"I didn't catch that{self.brain.sir()}.", lambda: self.listen(False))
+            self.say("Sorry, I didn't catch that.", lambda: self.listen(False))
             return
         self.misses = 0
-        self.overlay.heard = text
-        self.overlay.mode = "thinking"
+        self.companion.heard = text
+        self.companion.mode = "thinking"
         clip = QApplication.clipboard().text()
         self.brain.clipboard_text = lambda: clip
-        # Work off the UI thread so the animation never freezes (PowerShell, file search...).
+        # Work off the UI thread so the animation never stalls (PowerShell, file search...).
         threading.Thread(target=lambda: self.bus.replied.emit(self.brain.handle(text)), daemon=True).start()
 
     def on_reply(self, reply):
         if not self.active:
             return
-        self.overlay.display = reply.display or ""
+        self.companion.display = reply.display or ""
+        if reply.show:
+            self.companion.appear()
+        if reply.after and not reply.wait:
+            threading.Thread(target=reply.after, daemon=True).start()   # act right away, talk at the same time
 
-        def after():
-            if reply.after:
+        def done():
+            if reply.after and reply.wait:
                 threading.Thread(target=reply.after, daemon=True).start()
-            if reply.close:
-                QTimer.singleShot(300, self.close)
+            if reply.hide:
+                self.end_conversation()
+                self.companion.leave()
+            elif reply.close:
+                self.end_conversation()
             else:
                 self.listen(not reply.ask)
         if reply.speech:
-            self.say(reply.speech, after)
+            self.say(reply.speech, done)
         else:
-            after()
+            done()
 
     def say(self, text, then=None):
         self.listener.mute()
-        self.overlay.answer = text
-        self.overlay.mode = "speaking"
+        self.companion.answer = text
+        self.companion.mode = "speaking"
+        self.companion.show_card(10)
         self.speech_id += 1
         sid = self.speech_id
         self.after_speech[sid] = then
@@ -208,15 +229,18 @@ class Jarvis(QObject):
         if sid == self.speech_id and then:
             then()
 
-    def close(self):
+    def end_conversation(self):
         self.active = False
-        self.overlay.mode = "idle"
-        self.listener.mute()
-        self.overlay.leave()
+        self.companion.mode = "idle"
+        self.companion.show_card(6)
+        self.listener.back_to_wake()
 
-    def _overlay_hidden(self):
-        if not self.active:
-            self.listener.back_to_wake()
+    def hide(self):
+        self.end_conversation()
+        self.companion.leave()
+
+    def _companion_menu(self, pos):
+        self.menu.popup(pos)
 
     # ---------------------------------------------------------------- reminders
     def add_reminder(self, at, text):
@@ -232,12 +256,11 @@ class Jarvis(QObject):
             return
         self.store.set("reminders", [r for r in items if r["at"] > now])
         for r in due:
-            self.tray.showMessage("JARVIS", r["text"], self.icon)
+            self.notify(r["text"])
         text = " ".join(f"{r['text']}{self.brain.sir()}." for r in due)
         self.active = True
-        self.listener.mute()
-        self.overlay.appear()
-        QTimer.singleShot(2300, lambda: self.say(text, self.close))
+        self.companion.appear()
+        QTimer.singleShot(1900, lambda: self.say(text, self.end_conversation))
 
     # ---------------------------------------------------------------- tray actions
     def toggle_pause(self):
@@ -245,6 +268,7 @@ class Jarvis(QObject):
         self.pause_action.setText("Resume listening" if self.listener.paused else "Pause listening")
 
     def show_settings(self):
+        from .settings_ui import SettingsWindow
         if self.settings is None:
             self.settings = SettingsWindow(self)
         self.settings.show()
@@ -259,7 +283,7 @@ class Jarvis(QObject):
 
 
 def start_hotkey(callback):
-    """Ctrl+Alt+J anywhere in Windows opens JARVIS."""
+    """Ctrl+Alt+J anywhere in Windows talks to JARVIS."""
     if os.name != "nt":
         return
 
@@ -274,162 +298,6 @@ def start_hotkey(callback):
             if msg.message == 0x0312:
                 callback()
     threading.Thread(target=loop, daemon=True, name="jarvis-hotkey").start()
-
-
-class SettingsWindow(QWidget):
-    def __init__(self, jarvis):
-        super().__init__()
-        self.j = jarvis
-        s = jarvis.store
-        self.setWindowTitle("JARVIS")
-        self.setWindowIcon(jarvis.icon)
-        self.resize(720, 760)
-        self.setStyleSheet(APP_STYLE)
-        root = QVBoxLayout(self)
-        title = QLabel("J.A.R.V.I.S.")
-        title.setObjectName("title")
-        root.addWidget(title)
-        sub = QLabel("Offline personal assistant. Say \"Hey Jarvis\" or \"Jarvis\", or press Ctrl+Alt+J.")
-        sub.setObjectName("dim")
-        root.addWidget(sub)
-        self.status = QLabel()
-        root.addWidget(self.status)
-        row = QHBoxLayout()
-        talk = QPushButton("Talk to JARVIS")
-        talk.clicked.connect(jarvis.on_wake)
-        test = QPushButton("Hear my voice")
-        test.clicked.connect(lambda: jarvis.voice.say(f"Good evening, {s.get('user_title')}. All systems are online."))
-        row.addWidget(talk)
-        row.addWidget(test)
-        row.addStretch()
-        root.addLayout(row)
-
-        tabs = QTabWidget()
-        root.addWidget(tabs, 1)
-
-        # ---- Personality ----
-        form_w = QWidget()
-        form = QFormLayout(form_w)
-        self._combo(form, "Voice style", "voice_mode", [("Classic JARVIS (robotic)", "classic"), ("Full robot", "robot"),
-                                                       ("Calm", "calm"), ("Professional (no effect)", "professional")])
-        voices = QComboBox()
-        voices.addItem("Automatic (best male English voice)", "")
-        QTimer.singleShot(1500, lambda: [voices.addItem(v, v) for v in jarvis.voice.voices if voices.findData(v) < 0])
-        voices.currentIndexChanged.connect(lambda _i: (s.set("voice_name", voices.currentData()), jarvis.voice.reload()))
-        form.addRow("Voice", voices)
-        self._combo(form, "Reply style", "style", [("JARVIS (\"..., sir\")", "jarvis"), ("Friendly", "friendly"), ("Short", "short")])
-        self._slider(form, "Speaking speed", "speech_rate", 0.6, 1.8)
-        self._slider(form, "Wake sensitivity (left = fewer false wakes)", "wake_threshold", 0.65, 0.25)
-        self._line(form, "Call me", "user_title")
-        self._line(form, "Greeting", "greeting")
-        self._combo(form, "Speech model", "stt_model", [("English (India)", "en-in"), ("English (US)", "en-us")])
-        self._check(form, "Wake on \"Jarvis\" alone (not only \"Hey Jarvis\")", "wake_plain_jarvis")
-        self._check(form, "Accurate mode (better recognition, slightly slower)", "accurate_mode")
-        self._check(form, "Iron Man flight animation", "fly_animation")
-        self._check(form, "Start with Windows", "start_with_windows",
-                    lambda v: wa.set_startup(v, sys.executable) if getattr(sys, "frozen", False) else None)
-        tabs.addTab(form_w, "Personality")
-
-        tabs.addTab(self._text_tab("Routines: one per line, name: command; command; ...\nSay the name to run it, e.g. \"coding mode\".",
-                                   "routines"), "Routines")
-        tabs.addTab(self._text_tab("Projects and folders: name: C:\\path\\to\\folder, one per line.\n"
-                                   "\"open <name>\" opens it in VS Code (or Explorer).", "projects"), "Projects")
-        tabs.addTab(self._text_tab("Daily app limits in minutes: app: minutes, one per line (e.g. youtube: 90).", "limits"), "Limits")
-
-        mem_w = QWidget()
-        mv = QVBoxLayout(mem_w)
-        self.mem = QLabel()
-        self.mem.setWordWrap(True)
-        self.mem.setAlignment(Qt.AlignTop)
-        mv.addWidget(self.mem, 1)
-        clear = QPushButton("Forget everything")
-        clear.clicked.connect(self._clear_memory)
-        mv.addWidget(clear)
-        tabs.addTab(mem_w, "Memory")
-
-        log_w = QScrollArea()
-        log_w.setWidgetResizable(True)
-        self.log = QLabel()
-        self.log.setWordWrap(True)
-        self.log.setAlignment(Qt.AlignTop)
-        self.log.setObjectName("dim")
-        log_w.setWidget(self.log)
-        tabs.addTab(log_w, "Recent commands")
-        tabs.currentChanged.connect(lambda _i: self.refresh())
-        self.refresh()
-
-    def refresh_status(self):
-        st = self.j.engine_status
-        if st == "listening":
-            self.status.setText("● Listening for \"Hey Jarvis\". Everything stays on this laptop.")
-            self.status.setStyleSheet("color: #00E5FF;")
-        else:
-            self.status.setText("○ " + st)
-            self.status.setStyleSheet("color: #FFC857;")
-
-    def refresh(self):
-        self.refresh_status()
-        s = self.j.store
-        mem = [f"• {k} → {v}" for k, v in s.get("memory").items()] + [f"• note: {n}" for n in s.get("notes")]
-        self.mem.setText("\n".join(mem) or "Nothing yet. Say \"remember MediaAI is my main project\".")
-        self.log.setText("\n\n".join(f"{e['t']}  “{e['heard']}”\n→ {e['reply']}" for e in reversed(s.get("log"))) or "Nothing yet.")
-
-    def _clear_memory(self):
-        if QMessageBox.question(self, "JARVIS", "Forget everything JARVIS remembers?") == QMessageBox.Yes:
-            self.j.store.set("memory", {})
-            self.j.store.set("notes", [])
-            self.refresh()
-
-    def _combo(self, form, label, key, options):
-        c = QComboBox()
-        for text, val in options:
-            c.addItem(text, val)
-        c.setCurrentIndex(max(0, c.findData(self.j.store.get(key))))
-        c.currentIndexChanged.connect(lambda _i: self.j.store.set(key, c.currentData()))
-        form.addRow(label, c)
-
-    def _slider(self, form, label, key, lo, hi):
-        sl = QSlider(Qt.Horizontal)
-        sl.setRange(0, 100)
-        sl.setValue(int(round((float(self.j.store.get(key)) - lo) / (hi - lo) * 100)))
-        sl.valueChanged.connect(lambda v: self.j.store.set(key, round(lo + (hi - lo) * v / 100, 3)))
-        form.addRow(label, sl)
-
-    def _line(self, form, label, key):
-        e = QLineEdit(self.j.store.get(key))
-        e.textChanged.connect(lambda t: self.j.store.set(key, t.strip()))
-        form.addRow(label, e)
-
-    def _check(self, form, label, key, extra=None):
-        cb = QCheckBox(label)
-        cb.setChecked(bool(self.j.store.get(key)))
-
-        def changed(v):
-            self.j.store.set(key, bool(v))
-            if extra:
-                extra(bool(v))
-        cb.toggled.connect(changed)
-        form.addRow("", cb)
-
-    def _text_tab(self, help_text, key):
-        w = QWidget()
-        v = QVBoxLayout(w)
-        h = QLabel(help_text)
-        h.setObjectName("dim")
-        h.setWordWrap(True)
-        v.addWidget(h)
-        e = QPlainTextEdit(self.j.store.get(key))
-        e.setFont(QFont("Consolas", 11))
-        v.addWidget(e, 1)
-        save = QPushButton("Save")
-        save.clicked.connect(lambda: (self.j.store.set(key, e.toPlainText()), save.setText("Saved ✓"),
-                                      QTimer.singleShot(1500, lambda: save.setText("Save"))))
-        v.addWidget(save)
-        return w
-
-    def closeEvent(self, ev):
-        ev.ignore()
-        self.hide()
 
 
 def main():

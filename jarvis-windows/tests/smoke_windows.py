@@ -64,5 +64,48 @@ out = robotize(pcm, 16000, 0.18, 68.0, 6.0, 0.32)
 print(f"[voice] robotized {len(out)} samples, peak {int(np.abs(out).max())}, envelope {len(envelope(out, 256))} blocks")
 radio = wa.powershell("[Windows.Devices.Radios.Radio,Windows.System.Devices,ContentType=WindowsRuntime] | Out-Null; 'ok'")
 print(f"[radio] WinRT radio API available -> {radio}")
+# Voices: classic SAPI + OneCore.
+from jarvis.voice import list_voices
+print(f"[voices] {list_voices()}")
+
+# Background removal: the built-in suit painted on a busy background, then cut out.
+from PySide6.QtGui import QGuiApplication, QImage, QPainter, QColor, QLinearGradient, QBrush
+from jarvis.suit import draw_suit
+from jarvis.cutout import remove_background
+qapp = QGuiApplication.instance() or QGuiApplication([])
+src = os.path.join(tempfile.gettempdir(), "char_src.png")
+img = QImage(600, 1000, QImage.Format_RGB32)
+p = QPainter(img)
+g = QLinearGradient(0, 0, 600, 1000); g.setColorAt(0, QColor(60, 70, 85)); g.setColorAt(1, QColor(150, 165, 180))
+p.fillRect(img.rect(), QBrush(g))
+draw_suit(p, 300, 520, 900)
+p.end()
+img.save(src)
+dst = remove_background(src, os.path.join(tempfile.gettempdir(), "char_cut.png"))
+cut = QImage(dst)
+corner_alpha = cut.pixelColor(2, 2).alpha()
+centre = cut.pixelColor(cut.width() // 2, cut.height() // 2).alpha()
+ok = cut.hasAlphaChannel() and corner_alpha < 60 and centre > 200
+fails += not ok
+print(f"[cutout] {'ok ' if ok else 'BAD'} {cut.width()}x{cut.height()}, corner alpha {corner_alpha}, centre alpha {centre}")
+
+# Speed: quick path (understood straight away) vs Whisper double-check.
+import time as _t
+from jarvis.parser import parse
+for phrase in ("open notepad", "set a timer for five minutes"):
+    pcm = synth(phrase, tmp)
+    t0 = _t.time()
+    rec = KaldiRecognizer(Model(resource("models", "vosk-model-small-en-in-0.4")), 16000)
+    t_load = _t.time() - t0
+    t0 = _t.time()
+    rec.AcceptWaveform(pcm.tobytes())
+    quick = json.loads(rec.FinalResult())["text"]
+    t_quick = _t.time() - t0
+    t0 = _t.time()
+    whisper.transcribe(pcm.astype(np.float32) / 32768.0, language="en", beam_size=3, without_timestamps=True)
+    t_whisper = _t.time() - t0
+    print(f"[speed] {phrase!r}: quick {t_quick*1000:.0f} ms ({quick!r}, understood={parse(quick).intent != 'unknown'}), "
+          f"whisper {t_whisper*1000:.0f} ms")
+
 print("SMOKE", "FAILED" if fails else "PASSED")
 sys.exit(1 if fails else 0)

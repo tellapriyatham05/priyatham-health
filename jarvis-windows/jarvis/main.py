@@ -70,7 +70,11 @@ def choose(quick, grammar, accurate):
     """Picks what you most likely said from three recognisers:
     quick (free dictation), grammar (JARVIS's own words only) and accurate (Whisper, computed on demand)."""
     if quick and quick_enough(quick):
-        return quick
+        if len(quick.split()) > 1:
+            return quick
+        # One word is easy to mishear ("hide" → "hi"): let the accurate recogniser confirm or correct it.
+        a = accurate()
+        return a if known(a) else quick
     a = accurate()
     if known(a):
         return a

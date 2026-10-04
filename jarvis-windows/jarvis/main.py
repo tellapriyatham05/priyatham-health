@@ -66,9 +66,21 @@ def known(text):
     return bool(text) and parse(text).intent not in ("unknown", "empty")
 
 
+LOW_VALUE_INTENTS = {"hello", "yes", "empty", "thanks"}
+
+
 def choose(quick, grammar, accurate):
     """Picks what you most likely said from three recognisers:
-    quick (free dictation), grammar (JARVIS's own words only) and accurate (Whisper, computed on demand)."""
+    quick (free dictation), grammar (JARVIS's own words only) and accurate (Whisper, computed on demand).
+    Once JARVIS is listening, a bare greeting ("hi") is unlikely: a real command from the
+    command-word recogniser ("hide") wins over it."""
+    picked = _choose(quick, grammar, accurate)
+    if parse(picked).intent in LOW_VALUE_INTENTS and known(grammar) and parse(grammar).intent not in LOW_VALUE_INTENTS:
+        return grammar
+    return picked
+
+
+def _choose(quick, grammar, accurate):
     if quick and quick_enough(quick):
         if len(quick.split()) > 1:
             return quick

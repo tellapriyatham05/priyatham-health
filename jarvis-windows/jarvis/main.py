@@ -15,6 +15,7 @@ from .brain import Brain
 from .companion import Companion
 from .parser import VOCAB, parse
 from .store import Store, data_dir
+from .logs import log
 from .voice import Voice
 
 
@@ -171,6 +172,10 @@ class Jarvis(QObject):
         self.reminder_timer = QTimer()
         self.reminder_timer.timeout.connect(self.check_reminders)
         self.reminder_timer.start(5000)
+        self.watchdog = QTimer()
+        self.watchdog.timeout.connect(self._watchdog)
+        self.watchdog.start(2000)
+        log.info("JARVIS started")
         self.listener.start()
         start_hotkey(self.bus.hotkey.emit)
         if getattr(sys, "frozen", False):
@@ -250,6 +255,7 @@ class Jarvis(QObject):
 
     def on_final(self, text):
         if not self.active:
+            self.listener.back_to_wake()
             return
         text = text.strip()
         if not text:
@@ -264,21 +270,33 @@ class Jarvis(QObject):
         self.companion.mode = "thinking"
         clip = QApplication.clipboard().text()
         self.brain.clipboard_text = lambda: clip
-        # Work off the UI thread so the animation never stalls (PowerShell, file search...).
-        threading.Thread(target=lambda: self.bus.replied.emit(self.brain.handle(text)), daemon=True).start()
+        log.info("command: %r", text)
+
+        def work():
+            # Work off the UI thread so the animation never stalls (PowerShell, file search...).
+            try:
+                reply = self.brain.handle(text)
+            except Exception as e:
+                log.exception("command failed: %r", text)
+                from .brain import Reply
+                reply = Reply(f"Sorry, that didn't work: {e}", close=True)
+            self.bus.replied.emit(reply)
+        threading.Thread(target=work, daemon=True).start()
 
     def on_reply(self, reply):
+        log.info("reply: %r (close=%s ask=%s)", reply.speech, reply.close, reply.ask)
         if not self.active:
+            self.listener.back_to_wake()
             return
         self.companion.display = reply.display or ""
         if reply.show:
             self.companion.appear()
         if reply.after and not reply.wait:
-            threading.Thread(target=reply.after, daemon=True).start()   # act right away, talk at the same time
+            threading.Thread(target=self._run_action, args=(reply.after,), daemon=True).start()   # act while talking
 
         def done():
             if reply.after and reply.wait:
-                threading.Thread(target=reply.after, daemon=True).start()
+                threading.Thread(target=self._run_action, args=(reply.after,), daemon=True).start()
             if reply.offline:
                 self.end_conversation()
                 self.companion.leave()
@@ -295,6 +313,13 @@ class Jarvis(QObject):
         else:
             done()
 
+    @staticmethod
+    def _run_action(fn):
+        try:
+            fn()
+        except Exception:
+            log.exception("action failed")
+
     def say(self, text, then=None):
         self.listener.mute()
         self.companion.answer = text
@@ -304,11 +329,26 @@ class Jarvis(QObject):
         sid = self.speech_id
         self.after_speech[sid] = then
         self.voice.say(text, done=lambda: self.bus.spoken.emit(sid))
+        # Safety net: never wait forever for speech to finish.
+        QTimer.singleShot(int(6000 + 120 * len(text)), lambda: self._spoken(sid))
 
     def _spoken(self, sid):
         then = self.after_speech.pop(sid, None)
         if sid == self.speech_id and then:
             then()
+
+    def _watchdog(self):
+        """Self-healing: if JARVIS has been stuck in one state too long, go back to waiting for "Jarvis"."""
+        mode = self.listener.mode
+        stuck = time.time() - getattr(self.listener, "mode_since", time.time())
+        if mode == "muted" and stuck > 45:
+            log.warning("watchdog: muted for %.0fs, resetting", stuck)
+            self.end_conversation()
+        elif mode == "command" and stuck > 20:
+            log.warning("watchdog: recording for %.0fs, resetting", stuck)
+            self.end_conversation()
+        elif mode == "muted" and not self.active and stuck > 3:
+            self.listener.back_to_wake()
 
     def end_conversation(self):
         self.unduck()

@@ -16,7 +16,9 @@ DEFAULTS = {
     "accurate_mode": True,        # use Whisper for the final transcript when available
     "greeting": "",               # spoken greeting on wake ("" = just a soft chime, fastest)
     "chime": True,
-    "duck_audio": True,           # turn other apps down while JARVIS listens
+    "duck_audio": True,
+    "mic_device": "",             # microphone name ("" = Windows default)
+    "theme": "ironman",           # ironman | light           # turn other apps down while JARVIS listens
     "char_image": "",             # your character picture
     "char_cutout": "",            # the same picture with its background removed
     "char_remove_bg": True,

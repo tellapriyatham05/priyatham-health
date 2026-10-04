@@ -10,6 +10,8 @@ import wave
 
 import numpy as np
 
+from .logs import log
+
 PRESETS = {  # ring-mod mix, ring Hz, comb delay ms, comb feedback, pitch shift (semitones)
     "classic": (0.18, 68.0, 6.0, 0.32, -1.0),
     "robot": (0.55, 52.0, 9.0, 0.45, -3.0),
@@ -103,7 +105,10 @@ def synth_to_wav(text, path, voice_name="", rate=1.0):
     stream.Open(path, 3, False)        # SSFMCreateForWrite
     try:
         voice.AudioOutputStream = stream
-        voice.Speak(text)
+        voice.Speak(text, 1)                       # SVSFlagsAsync, then wait with a time limit
+        if not voice.WaitUntilDone(15000):
+            voice.Speak("", 3)                     # purge: never hang on a broken voice
+            raise TimeoutError("voice took too long")
     finally:
         stream.Close()
 
@@ -148,10 +153,15 @@ class Voice:
                     done()
                 continue
             try:
-                synth_to_wav(text, path, self.store.get("voice_name"), float(self.store.get("speech_rate")))
+                try:
+                    synth_to_wav(text, path, self.store.get("voice_name"), float(self.store.get("speech_rate")))
+                except Exception:
+                    log.exception("voice %r failed, using the default voice", self.store.get("voice_name"))
+                    synth_to_wav(text, path, "Microsoft David Desktop - English (United States)",
+                                 float(self.store.get("speech_rate")))
                 self._play(path, gen)
             except Exception:
-                pass
+                log.exception("speaking failed")
             self.on_level(0.0)
             if done:
                 done()

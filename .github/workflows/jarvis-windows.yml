@@ -26,6 +26,8 @@ jobs:
         run: ./build_windows.ps1
       - name: Smoke test on Windows (wake word, speech, brain)
         run: python tests/smoke_windows.py
+      - name: End-to-end (wake word, command, reply - three times in a row)
+        run: python tests/e2e_windows.py
       - name: Check the packaged app starts
         run: |
           $p = Start-Process -FilePath dist\JARVIS\JARVIS.exe -ArgumentList "--background" -PassThru

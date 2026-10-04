@@ -12,6 +12,8 @@ import time
 
 import numpy as np
 
+from .logs import log
+
 SAMPLE_RATE = 16000
 FRAME = 1280
 
@@ -76,6 +78,10 @@ class Listener:
         self._heard_voice = False
         self._rec = None
         self._followup = False
+        self.noise_floor = 0.0
+        self.level_now = 0.0
+        self.reopen = False
+        self.mode_since = time.time()
         # Returns True when JARVIS already understands the quick transcript (then Whisper is skipped).
         self.understood = understood or (lambda text: False)
         # choose(candidates) picks the transcript to act on; vocabulary() lists JARVIS's own words.
@@ -125,6 +131,8 @@ class Listener:
         self._last_voice = time.time()
         self._heard_voice = False
         self._followup = followup
+        self._last_partial = ""
+        self.mode_since = time.time()
         self._rec = self._KaldiRecognizer(self.model, SAMPLE_RATE) if self.model else None
         if self._rec:
             self._rec.SetWords(False)
@@ -156,10 +164,12 @@ class Listener:
         if self.kws:
             self.kws.Reset()
         self.mode = "wake"
+        self.mode_since = time.time()
 
     def mute(self):
         """Ignore the mic while JARVIS talks, so it doesn't hear itself."""
         self.mode = "muted"
+        self.mode_since = time.time()
 
     # ---------------------------------------------------------------- mic thread
     def _callback(self, indata, frames, t, status):
@@ -181,15 +191,22 @@ class Listener:
         self.on_status("ready")
         while not self._stop.is_set():
             try:
-                with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=FRAME, callback=self._callback):
+                device = self.store.get("mic_device") or None
+                with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=FRAME,
+                                    callback=self._callback, device=device):
                     self.error = None
                     self.on_status("listening")
-                    while not self._stop.is_set():
+                    self.reopen = False
+                    while not self._stop.is_set() and not self.reopen:
                         try:
                             frame = self._q.get(timeout=1.0)
                         except queue.Empty:
                             continue
-                        self._handle(frame)
+                        try:
+                            self._handle(frame)
+                        except Exception:
+                            log.exception("listener frame failed (mode=%s)", self.mode)
+                            self.back_to_wake()
             except Exception as e:
                 self.error = f"Microphone problem: {e}"
                 self.on_status(self.error)
@@ -197,9 +214,12 @@ class Listener:
 
     def _handle(self, frame):
         level = float(np.sqrt(np.mean(frame.astype(np.float32) ** 2)) / 3000.0)
+        self.level_now = level
         if self.paused or self.mode == "muted":
             return
         if self.mode == "wake":
+            # Slowly follow the quietest recent level = the room's background noise.
+            self.noise_floor = min(level, self.noise_floor * 1.02 + 0.0005) if self.noise_floor else level
             score = self.wake.process(frame)
             hit = score >= float(self.store.get("wake_threshold"))
             if not hit and self.store.get("wake_plain_jarvis") and self.kws.AcceptWaveform(frame.tobytes()):
@@ -218,7 +238,9 @@ class Listener:
         self.on_level(min(1.0, level))
         self._cmd_audio.append(frame)
         now = time.time()
-        if level > 0.06 and now - self._cmd_started > 0.25:   # ignore the wake chime
+        # Speech = clearly louder than the room's background noise (fans, music, a video).
+        voice_threshold = max(0.06, self.noise_floor * 2.5)
+        if level > voice_threshold and now - self._cmd_started > 0.25:   # ignore the wake chime
             self._last_voice = now
             self._heard_voice = True
         if self._grec is not None:
@@ -233,12 +255,14 @@ class Listener:
                 return
         elif self._rec:
             partial = json.loads(self._rec.PartialResult()).get("partial", "")
-            if partial:
+            # Only a *new* word counts as still talking; the partial text stays the same during silence.
+            if partial and partial != self._last_partial:
+                self._last_partial = partial
                 self._heard_voice = True
                 self._last_voice = now
                 self.on_partial(partial)
         waited = now - self._cmd_started
-        if (self._heard_voice and now - self._last_voice > 0.75) or waited > 12 or (not self._heard_voice and waited > (5 if self._followup else 7)):
+        if (self._heard_voice and now - self._last_voice > 0.8) or waited > 8 or (not self._heard_voice and waited > (4 if self._followup else 6)):
             text = json.loads(self._rec.FinalResult()).get("text", "") if self._rec else ""
             self._finish(text)
 
@@ -283,4 +307,6 @@ class Listener:
         else:
             text = quick if quick and self.understood(quick) else (accurate() or quick)
         self.last_candidates = {"quick": quick, "grammar": grammar, "accurate": cache.get("a", "")}
+        log.info("heard quick=%r words=%r accurate=%r -> %r (%.1fs of audio)", quick, grammar, cache.get("a", ""), text,
+                 len(audio) / SAMPLE_RATE)
         self.on_final(text or "")

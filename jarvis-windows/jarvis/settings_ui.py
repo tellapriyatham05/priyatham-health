@@ -4,11 +4,11 @@ import shutil
 import sys
 import threading
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QPixmap
+from PySide6.QtCore import QRectF, Qt, QTimer
+from PySide6.QtGui import QColor, QFont, QImage, QLinearGradient, QPainter, QPixmap
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget,
-                               QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSlider, QStackedWidget,
-                               QVBoxLayout, QWidget)
+                               QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSlider,
+                               QStackedWidget, QVBoxLayout, QWidget)
 
 from . import winactions as wa
 from .store import data_dir
@@ -39,6 +39,36 @@ QScrollArea { border: none; background: transparent; }
 """
 
 
+DARK = """
+* { font-family: 'Segoe UI'; font-size: 10pt; color: #F3F4F6; }
+QWidget#root, QWidget#page, QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }
+QWidget#navwrap { background: rgba(10, 14, 22, 205); border-right: 1px solid rgba(255,255,255,30); }
+QListWidget#nav { background: transparent; border: none; padding: 12px 8px; outline: 0; }
+QListWidget#nav::item { padding: 9px 12px; border-radius: 8px; color: #D1D5DB; margin: 1px 0; }
+QListWidget#nav::item:selected { background: rgba(220, 38, 38, 150); color: #FFFFFF; }
+QListWidget#nav::item:hover:!selected { background: rgba(255,255,255,20); }
+QLabel#brand { font-size: 15pt; font-weight: 600; padding: 4px 12px 14px 12px; color: #FBBF24; }
+QLabel#h1 { font-size: 18pt; font-weight: 600; color: #FFFFFF; }
+QLabel#sub, QLabel#hint { color: #CBD5E1; }
+QFrame#card { background: rgba(12, 16, 26, 200); border: 1px solid rgba(251, 191, 36, 60); border-radius: 12px; }
+QLabel#rowlabel { font-weight: 500; }
+QPushButton { background: rgba(255,255,255,18); border: 1px solid rgba(255,255,255,60); border-radius: 8px; padding: 7px 14px; color: #F9FAFB; }
+QPushButton:hover { background: rgba(255,255,255,34); }
+QPushButton#primary { background: #DC2626; border: 1px solid #DC2626; color: #FFFFFF; font-weight: 600; }
+QPushButton#primary:hover { background: #B91C1C; }
+QLineEdit, QComboBox, QPlainTextEdit { background: rgba(0,0,0,120); border: 1px solid rgba(255,255,255,50); border-radius: 8px; padding: 6px 8px; color: #F9FAFB; }
+QComboBox QAbstractItemView { background: #111827; color: #F9FAFB; selection-background-color: #DC2626; }
+QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus { border: 1px solid #FBBF24; }
+QSlider::groove:horizontal { height: 4px; background: rgba(255,255,255,40); border-radius: 2px; }
+QSlider::sub-page:horizontal { background: #FBBF24; border-radius: 2px; }
+QSlider::handle:horizontal { background: #FFFFFF; border: 1px solid #9CA3AF; width: 16px; margin: -7px 0; border-radius: 8px; }
+QCheckBox::indicator { width: 18px; height: 18px; border: 1px solid rgba(255,255,255,140); border-radius: 4px; background: rgba(0,0,0,120); }
+QCheckBox::indicator:checked { background: #DC2626; border: 1px solid #FCA5A5; }
+QProgressBar { background: rgba(255,255,255,25); border: none; border-radius: 4px; height: 8px; }
+QProgressBar::chunk { background: #22C55E; border-radius: 4px; }
+"""
+
+
 class SettingsWindow(QWidget):
     def __init__(self, jarvis):
         super().__init__()
@@ -47,8 +77,9 @@ class SettingsWindow(QWidget):
         self.setObjectName("root")
         self.setWindowTitle("JARVIS")
         self.setWindowIcon(jarvis.icon)
-        self.resize(860, 640)
-        self.setStyleSheet(STYLE)
+        self.resize(900, 660)
+        self.bg = None
+        self.apply_theme()
         jarvis.bus.cutout_done.connect(self._cutout_done)
 
         outer = QHBoxLayout(self)
@@ -83,6 +114,48 @@ class SettingsWindow(QWidget):
             self.pages.addWidget(self._scroll(builder()))
         self.nav.currentRowChanged.connect(self._switch)
         self.nav.setCurrentRow(0)
+
+    # ---------------------------------------------------------------- theme
+    def apply_theme(self):
+        dark = self.s.get("theme") == "ironman"
+        self.setStyleSheet(DARK if dark else STYLE)
+        self.bg = None
+        if dark:
+            path = self.s.get("char_cutout") or self.s.get("char_image")   # the cut-out blends best
+            if path and os.path.exists(path):
+                self.bg = QImage(path)
+            else:  # the built-in suit, drawn once
+                from .suit import draw_suit
+                img = QImage(600, 1000, QImage.Format_ARGB32)
+                img.fill(QColor(0, 0, 0, 0))
+                p = QPainter(img)
+                draw_suit(p, 300, 500, 960)
+                p.end()
+                self.bg = img
+        self.update()
+
+    def paintEvent(self, ev):
+        if self.s.get("theme") != "ironman":
+            return super().paintEvent(ev)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        w, h = self.width(), self.height()
+        g = QLinearGradient(0, 0, w, h)
+        g.setColorAt(0, QColor(8, 10, 16))
+        g.setColorAt(1, QColor(40, 10, 14))
+        p.fillRect(self.rect(), g)
+        if self.bg is not None and not self.bg.isNull():
+            # Your character on the right, fading into the dark background.
+            ih = h * 1.05
+            iw = ih * self.bg.width() / max(1, self.bg.height())
+            p.setOpacity(0.55)
+            p.drawImage(QRectF(w - iw * 0.92, h - ih, iw, ih), self.bg)
+            p.setOpacity(1.0)
+            fade = QLinearGradient(w * 0.35, 0, w, 0)
+            fade.setColorAt(0, QColor(8, 10, 16, 235))
+            fade.setColorAt(1, QColor(8, 10, 16, 40))
+            p.fillRect(self.rect(), fade)
+        p.end()
 
     # ---------------------------------------------------------------- building blocks
     def _scroll(self, w):
@@ -200,6 +273,28 @@ class SettingsWindow(QWidget):
         cv.addLayout(row)
 
         cv = self._card(v)
+        self._row(cv, "Look", self._combo("theme", [("Iron Man (dark, your character in the background)", "ironman"),
+                                                   ("Light", "light")], self.apply_theme))
+        self.mics = QComboBox()
+        self.mics.addItem("Windows default microphone", "")
+        try:
+            import sounddevice as sd
+            for d in sd.query_devices():
+                if d.get("max_input_channels", 0) > 0 and self.mics.findData(d["name"]) < 0:
+                    self.mics.addItem(d["name"], d["name"])
+        except Exception:
+            pass
+        self.mics.setCurrentIndex(max(0, self.mics.findData(self.s.get("mic_device"))))
+        self.mics.currentIndexChanged.connect(self._mic_changed)
+        self._row(cv, "Microphone", self.mics, "Pick the one you talk into.")
+        self.meter = QProgressBar()
+        self.meter.setRange(0, 100)
+        self.meter.setTextVisible(False)
+        self.meter.setFixedHeight(8)
+        self._row(cv, "Microphone level", self.meter, "Talk: the bar should move. If it doesn't, pick another microphone.")
+        self.meter_timer = QTimer(self)
+        self.meter_timer.timeout.connect(lambda: self.meter.setValue(int(min(1.0, getattr(self.j.listener, "level_now", 0) * 3) * 100)))
+        self.meter_timer.start(80)
         self._row(cv, "Call me", self._line("user_title"), "How JARVIS addresses you.")
         self._row(cv, "Wake on “Jarvis” alone", self._check("wake_plain_jarvis"), "Otherwise only “Hey Jarvis”.")
         self._row(cv, "Wake sensitivity", self._slider("wake_threshold", 0.65, 0.25), "Move left if it wakes by mistake.")
@@ -212,6 +307,13 @@ class SettingsWindow(QWidget):
                   "Turns YouTube, music and games down to 30% so JARVIS hears you clearly.")
         self._row(cv, "Start with Windows", self._check("start_with_windows",
                   lambda val: wa.set_startup(val, sys.executable) if getattr(sys, "frozen", False) else None))
+        row2 = QHBoxLayout()
+        row2.addWidget(self._button("Open log", lambda: wa.open_path(os.path.join(data_dir(), "jarvis.log"))))
+        hint = QLabel("If something doesn't work, send me this file.")
+        hint.setObjectName("hint")
+        row2.addWidget(hint)
+        row2.addStretch()
+        v.addLayout(row2)
         v.addStretch()
         return w
 
@@ -326,6 +428,7 @@ class SettingsWindow(QWidget):
 
     def _apply_character(self):
         self.j.companion.load_character()
+        self.apply_theme()
         if self.j.companion.isVisible():
             self.j.companion.move(self.j.companion.home_pos())
         self._refresh_preview()
@@ -372,6 +475,10 @@ class SettingsWindow(QWidget):
         return w
 
     # ---------------------------------------------------------------- refresh
+    def _mic_changed(self, _i):
+        self.s.set("mic_device", self.mics.currentData() or "")
+        self.j.listener.reopen = True        # reconnect to the new microphone
+
     def _quit(self):
         if QMessageBox.question(self, "JARVIS", "Quit JARVIS? It won't listen until you open it again.") == QMessageBox.Yes:
             self.j.quit()

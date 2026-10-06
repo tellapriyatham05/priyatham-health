@@ -102,7 +102,7 @@ const run = spawnSync(cmd, args, {
   cwd: root,
   env: { ...process.env, JARVIS_TEST_CLIPS: listFile, JARVIS_TEST_OUT: outFile, JARVIS_DRY_RUN: LIVE ? '0' : '1' },
   encoding: 'utf8',
-  timeout: 300000,
+  timeout: 600000, // 57 clips with pauses between them take about 6 minutes
 });
 if (!fs.existsSync(outFile)) {
   console.log('App did not produce results.\n', (run.stdout || '').slice(-3000), (run.stderr || '').slice(-3000));

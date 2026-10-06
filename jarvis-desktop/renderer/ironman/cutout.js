@@ -94,12 +94,15 @@
     };
     let bottom = h - 1;
     while (bottom > 0 && !runsAt(bottom).length) bottom--;
-    let left = null, right = null;
-    for (let y = bottom; y > bottom - h * 0.2 && y > 0; y--) {
-      const runs = runsAt(y).sort((p, q) => (q[1] - q[0]) - (p[1] - p[0])).slice(0, 2).sort((p, q) => p[0] - q[0]);
-      if (runs.length === 2 && runs[1][0] - runs[0][1] >= Math.max(2, w * 0.01)) {
+    // Legs: two wide solid parts side by side (small specks, shadows or a glow are ignored).
+    const minLeg = Math.max(3, w * 0.05);
+    let left = null, right = null, legRow = bottom;
+    for (let y = Math.min(bottom, Math.round(h * 0.93)); y > h * 0.6; y--) {
+      const runs = runsAt(y).filter(([a, b]) => b - a >= minLeg).sort((p, q) => (q[1] - q[0]) - (p[1] - p[0])).slice(0, 2).sort((p, q) => p[0] - q[0]);
+      if (runs.length === 2 && runs[1][0] - runs[0][1] >= 2) {
         left = (runs[0][0] + runs[0][1]) / 2;
         right = (runs[1][0] + runs[1][1]) / 2;
+        legRow = y;
         break;
       }
     }
@@ -109,17 +112,11 @@
       const span = run[1] - run[0];
       left = run[0] + span * 0.27;
       right = run[1] - span * 0.27;
+      legRow = bottom;
     }
-    // Each sole: the lowest solid pixel near that boot's centre.
-    const sole = (cx) => {
-      for (let y = h - 1; y > 0; y--) {
-        for (let dx = -2; dx <= 2; dx++) {
-          const x = Math.round(cx) + dx;
-          if (x >= 0 && x < w && solid(x, y)) return y;
-        }
-      }
-      return bottom;
-    };
+    // Each sole: follow that leg straight down while it stays solid (a detached glow below doesn't count).
+    const near = (cx, y) => { for (let dx = -2; dx <= 2; dx++) { const x = Math.round(cx) + dx; if (x >= 0 && x < w && solid(x, y)) return true; } return false; };
+    const sole = (cx) => { let y = legRow; while (y + 1 < h && near(cx, y + 1)) y++; return y; };
     return [{ x: left / w, y: sole(left) / h }, { x: right / w, y: sole(right) / h }];
   }
 

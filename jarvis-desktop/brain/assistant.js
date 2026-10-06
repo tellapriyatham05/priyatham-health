@@ -27,6 +27,8 @@ const HELP = [
 
 // Actions that are about Jarvis itself, not recorded into routines.
 const NOT_RECORDED = new Set(['record', 'editor', 'visibility', 'numbers', 'clickNumber', 'dictation', 'time', 'help', 'cancel', 'stopListening', 'chat', 'sysinfo', 'quitApp']);
+// Commands that only count when you say "Jarvis" first (never as a follow-up).
+const STRICT_NEEDS_NAME = new Set(['incomplete', 'cancel', 'stopListening', 'dictation', 'chat', 'visibility', 'quitApp', 'power', 'record']);
 // Small actions that just get a squeak instead of words.
 const QUIET = new Set(['key', 'mouse', 'sequence', 'type', 'clickNumber', 'media', 'window', 'fullscreen']);
 
@@ -161,9 +163,14 @@ class Assistant {
       return this.handleCommand(wake.rest, id, { heard: text, sec });
     }
     if (this.inWindow('awake')) return this.handleCommand(`${this.prefix}${text}`, id, { heard: text, sec });
+    // "Jarvis" in the middle of a longer stretch of sound (a TV or fan made the voice detector
+    // join it to what came before): use what follows his name if it is a clear command.
+    const later = findWakeLater(text);
+    if (later) return this.handleCommand(later, id, { heard: text, strict: true, sec });
     if ((this.inWindow('following') || this.inWindow('choosing')) && sec <= 6) {
       return this.handleCommand(text, id, { heard: text, strict: true, sec });
     }
+    this.log(`not for Jarvis: ${text}`);
   }
 
   // While numbers are showing, "7", "number 7", "seven" all mean "click 7".
@@ -194,7 +201,10 @@ class Assistant {
 
     // Follow-ups without "Jarvis" must be a clean, known command; anything else
     // (people talking, a video playing) is ignored silently.
-    if (strict && (parsed.unknown.length || !parsed.actions.length || parsed.actions.some((a) => ['incomplete', 'cancel', 'stopListening', 'dictation'].includes(a.kind)))) {
+    // Talking to JARVIS himself (hello, thanks, bye, quit, hide…) always needs his name: the
+    // speech model sometimes turns a cough or room noise into "Thank you." or "Bye."
+    if (strict && (parsed.unknown.length || !parsed.actions.length || parsed.actions.some((a) => STRICT_NEEDS_NAME.has(a.kind)))) {
+      this.log(`ignored (no "Jarvis"): ${text}`);
       return;
     }
     if (parsed.empty) return this.goAwake();
@@ -382,6 +392,16 @@ class Assistant {
     else this.setMode('following', FOLLOW_MS);
     return results;
   }
+}
+
+// "… the weather is nice Jarvis open WhatsApp" → "open WhatsApp".
+function findWakeLater(text) {
+  const words = cleanText(text, true).split(' ');
+  for (let i = 1; i < words.length - 1; i++) {
+    const rest = detectWake(words.slice(i).join(' '));
+    if (rest.found && rest.rest) return rest.rest;
+  }
+  return null;
 }
 
 // What Jarvis says while starting a job.

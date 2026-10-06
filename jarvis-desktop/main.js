@@ -78,8 +78,6 @@ function log(line) {
 }
 
 function show(display) {
-  // Calling "Jarvis" while he is off the screen brings him flying back.
-  if (settings.hidden && ['listening', 'thinking', 'confirm'].includes(display.dot)) setHidden(false);
   if (overlay && !overlay.isDestroyed()) overlay.webContents.send('display', { soundOn: settings.sound, ...display });
   if (display.keep) return; // just a sound, nothing else changes
   const trayState = { listening: 'listening', speaking: 'listening', confirm: 'listening', thinking: 'thinking', error: 'error', paused: 'paused' }[display.dot] || 'idle';
@@ -562,7 +560,7 @@ async function runTestClips() {
     const start = Date.now();
     while (Date.now() - start < 15000) {
       await sleep(100);
-      if (testLog.length > heardBefore && !assistant.busy && Date.now() - start > 1500) break;
+      if (testLog.length > heardBefore && !assistant.busy && !assistant.refining && Date.now() - start > 1500) break;
     }
     await sleep(clip.settleMs || 1200);
     const handled = assistant.history.slice(before);
@@ -631,7 +629,7 @@ if (!app.requestSingleInstanceLock()) {
       helper, dryRun: TEST.dryRun, settings, custom, parse: parseCommand, log,
       hooks: { timers: timerAction, openEditor, showNumbers, hideNumbers, setHidden, quitApp: quitByUser },
     });
-    assistant = new Assistant({ executor, refine, ui: show, speak, log, custom, saveCustom });
+    assistant = new Assistant({ executor, refine, ui: show, speak, log, custom, saveCustom, onCalled: () => { if (settings.hidden) setHidden(false); } });
     helper.start().then(() => executor.loadApps()).then((n) => log(`found ${n} Start menu apps`)).catch((e) => log(`helper failed: ${e.message}`));
 
     trace('helpers created');

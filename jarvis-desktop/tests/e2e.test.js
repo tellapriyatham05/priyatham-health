@@ -20,7 +20,7 @@ const PLAN = [
   ['open_yt', (c) => act(c).kind === 'open' && act(c).target === 'youtube'],
   ['wake_only', (c) => noCommand(c) && c.mode === 'awake'],
   ['then_notepad', (c) => act(c).kind === 'open' && act(c).target === 'notepad'],
-  ['search_yt', (c) => act(c).kind === 'search' && act(c).engine === 'youtube' && /blockbuster telugu songs/i.test(act(c).query)],
+  ['search_yt', (c) => act(c).kind === 'search' && act(c).engine === 'youtube' && /blockbuster tel[eu]gu songs/i.test(act(c).query)],
   ['enter', (c) => act(c).kind === 'key' && act(c).keys.join('+') === 'enter'],
   ['click_enter', (c) => act(c).kind === 'key' && act(c).keys.join('+') === 'enter'],
   ['restart', (c) => c.mode === 'confirm' && act(c).op === 'restart' && !(c.commands[0].results || []).length],

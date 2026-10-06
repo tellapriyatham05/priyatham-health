@@ -533,7 +533,8 @@ class Executor {
   }
 
   async volume(a) {
-    const now = await this.helper.call('volume-get');
+    // The test server has no sound card: in a dry run, pretend the volume is 50 %.
+    const now = await this.helper.call('volume-get').catch((err) => { if (this.dryRun) return { volume: 50, muted: false }; throw err; });
     let target = now.volume;
     if (a.op === 'mute' || a.op === 'unmute') {
       if (!this.dryRun) await this.helper.call('mute-set', { muted: a.op === 'mute' });

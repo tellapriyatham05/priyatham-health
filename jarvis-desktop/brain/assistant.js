@@ -47,7 +47,8 @@ function dictationText(raw) {
 }
 
 class Assistant {
-  constructor({ executor, refine, ui, speak = () => {}, log = () => {}, custom = {}, saveCustom = () => {} }) {
+  constructor({ executor, refine, ui, speak = () => {}, log = () => {}, custom = {}, saveCustom = () => {}, onCalled = () => {} }) {
+    this.onCalled = onCalled;  // he was called by name (or clicked): bring him back on screen
     this.executor = executor;
     this.refine = refine;       // (segmentId) => Promise<string|null> using the accurate model
     this.ui = ui;               // (display) => void
@@ -106,6 +107,7 @@ class Assistant {
 
   goAwake(prefix = '', prompt = '') {
     this.prefix = prefix;
+    this.onCalled();
     this.setMode('awake', AWAKE_MS);
     this.ui({ dot: 'listening', label: prompt || this.recordingLabel() || 'Listening…', text: prompt ? '' : 'Say a command', sound: 'wake' });
     if (prompt) this.speak(prompt, { level: 'answer' });
@@ -197,10 +199,16 @@ class Assistant {
     }
     if (parsed.empty) return this.goAwake();
 
-    // Typing and searching need exact words: re-read the audio with the accurate model.
-    if (parsed.actions.some((a) => a.freeText) && this.refine) {
+    // He's been called: if he flew off the screen, he comes back (unless you told him to go).
+    if (!parsed.actions.some((a) => a.kind === 'visibility' && !a.show)) this.onCalled();
+
+    // Typed text must be exact: re-read the audio with the accurate model. Searches and songs
+    // use the fast transcript so JARVIS answers straight away.
+    if (parsed.actions.some((a) => a.freeText && !['search', 'play'].includes(a.kind)) && this.refine) {
       this.ui({ dot: 'thinking', label: 'Getting the exact words…', text: heard });
-      const better = await this.refine(id);
+      this.refining = true;
+      let better;
+      try { better = await this.refine(id); } finally { this.refining = false; }
       if (better) {
         const w = detectWake(better);
         let candidate = w.found ? w.rest : better;
@@ -311,7 +319,9 @@ class Assistant {
       return;
     }
     this.setMode('dictating', DICTATION_IDLE_MS);
-    const exact = (this.refine && (await this.refine(id))) || fastText;
+    this.refining = true;
+    let exact;
+    try { exact = (this.refine && (await this.refine(id))) || fastText; } finally { this.refining = false; }
     const typed = dictationText(exact);
     if (!typed.trim()) return;
     this.ui({ dot: 'dictate', label: '✍ Dictation — say "stop dictation" to finish', text: typed.trim() });

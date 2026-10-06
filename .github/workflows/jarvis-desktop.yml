@@ -93,6 +93,7 @@ jobs:
           Get-Process JarvisAssistant -ErrorAction SilentlyContinue | Stop-Process -Force
           if ($text -notmatch 'engine ready') { throw 'The speech engine did not start in the packaged app' }
           if ($text -notmatch 'voice ready') { throw 'The voice did not start in the packaged app' }
+          if ($text -match 'Failed to convert|Failed to phonemize') { throw 'The voice could not turn text into speech' }
           if ($text -match 'speech playback failed|voice error') { Write-Warning 'Voice playback reported a problem (no speakers on the build server?)' }
 
       - name: Publish download (GitHub release)

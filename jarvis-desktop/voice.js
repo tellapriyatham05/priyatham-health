@@ -48,8 +48,13 @@ async function pump() {
   busy = false;
 }
 
-function config(british) {
-  const lexicon = path.join(DIR, british ? 'lexicon-gb-en.txt' : 'lexicon-us-en.txt');
+// British pronunciation first (word list + espeak's British English, called "en"), then American.
+const SETUPS = [
+  { lexicon: 'lexicon-gb-en.txt', lang: 'en' },
+  { lexicon: 'lexicon-us-en.txt', lang: 'en-us' },
+];
+
+function config({ lexicon, lang }) {
   return {
     model: {
       kokoro: {
@@ -57,8 +62,8 @@ function config(british) {
         voices: path.join(DIR, 'voices.bin'),
         tokens: path.join(DIR, 'tokens.txt'),
         dataDir: path.join(DIR, 'espeak-ng-data'),
-        lexicon,
-        lang: british ? 'en-gb' : 'en-us',
+        lexicon: path.join(DIR, lexicon),
+        lang,
       },
       numThreads: 4,
     },
@@ -68,15 +73,24 @@ function config(british) {
 
 async function init() {
   const started = Date.now();
-  // British pronunciation when that word list is available, American otherwise.
-  const british = fs.existsSync(path.join(DIR, 'lexicon-gb-en.txt'));
-  try {
-    tts = await sherpa.OfflineTts.createAsync(config(british));
-  } catch (err) {
-    if (!british) throw err;
-    send({ type: 'log', message: `British setup failed (${err}), using American pronunciation` });
-    tts = await sherpa.OfflineTts.createAsync(config(false));
+  // Use the first setup that really speaks (a word not in the word list goes through espeak,
+  // so the test sentence checks that part too).
+  for (const setup of SETUPS) {
+    if (!fs.existsSync(path.join(DIR, setup.lexicon))) continue;
+    try {
+      const candidate = await sherpa.OfflineTts.createAsync(config(setup));
+      const test = await candidate.generateAsync({ text: 'Yes, sir. Jarvis online, Priyatham.', sid: speaker, speed: SPEED, enableExternalBuffer: false });
+      if (test && test.samples && test.samples.length > 1000) {
+        tts = candidate;
+        send({ type: 'log', message: `speaking with ${setup.lexicon} / ${setup.lang}` });
+        break;
+      }
+      send({ type: 'log', message: `${setup.lexicon} / ${setup.lang} produced no sound, trying the next` });
+    } catch (err) {
+      send({ type: 'log', message: `${setup.lexicon} / ${setup.lang} failed (${err}), trying the next` });
+    }
   }
+  if (!tts) throw new Error('no voice setup worked');
   send({ type: 'ready', ms: Date.now() - started });
   pump();
   for (const text of WARM_UP) await generate(text).catch(() => {});

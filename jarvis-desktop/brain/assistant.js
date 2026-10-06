@@ -153,16 +153,16 @@ class Assistant {
     if (this.inWindow('confirm')) return this.handleConfirm(said);
     if (this.inWindow('choosing') && said) {
       const choice = this.numberChoice(said);
-      if (choice) return this.handleCommand(choice, id, { heard: text });
+      if (choice) return this.handleCommand(choice, id, { heard: text, sec });
     }
-    if (this.inWindow('naming') && !wake.found) return this.handleCommand(`save as ${said}`, id, { heard: text });
+    if (this.inWindow('naming') && !wake.found) return this.handleCommand(`save as ${said}`, id, { heard: text, sec });
     if (wake.found) {
       if (!wake.rest) return this.goAwake();
-      return this.handleCommand(wake.rest, id, { heard: text });
+      return this.handleCommand(wake.rest, id, { heard: text, sec });
     }
-    if (this.inWindow('awake')) return this.handleCommand(`${this.prefix}${text}`, id, { heard: text });
+    if (this.inWindow('awake')) return this.handleCommand(`${this.prefix}${text}`, id, { heard: text, sec });
     if ((this.inWindow('following') || this.inWindow('choosing')) && sec <= 6) {
-      return this.handleCommand(text, id, { heard: text, strict: true });
+      return this.handleCommand(text, id, { heard: text, strict: true, sec });
     }
   }
 
@@ -189,7 +189,7 @@ class Assistant {
     this.speak('Very well, sir. Cancelled.', { level: 'chat' });
   }
 
-  async handleCommand(text, id, { heard, strict = false } = {}) {
+  async handleCommand(text, id, { heard, strict = false, sec = 99 } = {}) {
     let parsed = parseCommand(text, { custom: this.custom });
 
     // Follow-ups without "Jarvis" must be a clean, known command; anything else
@@ -203,8 +203,9 @@ class Assistant {
     if (!parsed.actions.some((a) => a.kind === 'visibility' && !a.show)) this.onCalled();
 
     // Typed text must be exact: re-read the audio with the accurate model. Searches and songs
-    // use the fast transcript so JARVIS answers straight away.
-    if (parsed.actions.some((a) => a.freeText && !['search', 'play'].includes(a.kind)) && this.refine) {
+    // are re-read only when short (about 2 s); long ones use the fast transcript so JARVIS
+    // answers straight away.
+    if (parsed.actions.some((a) => a.freeText && (!['search', 'play'].includes(a.kind) || sec <= 2.5)) && this.refine) {
       this.ui({ dot: 'thinking', label: 'Getting the exact words…', text: heard });
       this.refining = true;
       let better;

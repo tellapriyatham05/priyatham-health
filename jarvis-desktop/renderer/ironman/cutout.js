@@ -75,28 +75,52 @@
     return out;
   }
 
-  // Lowest solid rows of the cut-out = the boots. Returns [{x, y}] as fractions of the picture.
+  // The boots: the two legs separate a little above the soles even when the feet touch,
+  // so find the lowest row with two separate solid parts, then each boot's sole below it.
+  // Returns [{x, y}] as fractions of the picture (y = the sole).
   function findFeet(canvas) {
     const w = canvas.width, h = canvas.height;
     const d = canvas.getContext('2d').getImageData(0, 0, w, h).data;
-    for (let y = h - 1; y > h * 0.6; y--) {
+    const solid = (x, y) => d[(y * w + x) * 4 + 3] > 110;
+    const runsAt = (y) => {
       const runs = [];
       let start = -1;
       for (let x = 0; x <= w; x++) {
-        const solid = x < w && d[(y * w + x) * 4 + 3] > 128;
-        if (solid && start < 0) start = x;
-        if (!solid && start >= 0) { runs.push([start, x - 1]); start = -1; }
+        const s = x < w && solid(x, y);
+        if (s && start < 0) start = x;
+        if (!s && start >= 0) { if (x - start >= 2) runs.push([start, x - 1]); start = -1; }
       }
-      const big = runs.filter(([a, b]) => b - a >= 2);
-      if (!big.length) continue;
-      const fy = Math.min(0.99, (y - 2) / h);
-      const best = big.sort((p, q) => (q[1] - q[0]) - (p[1] - p[0])).slice(0, 2).sort((p, q) => p[0] - q[0]);
-      if (best.length === 2) return best.map(([a, b]) => ({ x: (a + b) / 2 / w, y: fy }));
-      const cx = (best[0][0] + best[0][1]) / 2 / w;
-      const spread = Math.max(0.05, (best[0][1] - best[0][0]) / w / 4);
-      return [{ x: cx - spread, y: fy }, { x: cx + spread, y: fy }];
+      return runs;
+    };
+    let bottom = h - 1;
+    while (bottom > 0 && !runsAt(bottom).length) bottom--;
+    let left = null, right = null;
+    for (let y = bottom; y > bottom - h * 0.2 && y > 0; y--) {
+      const runs = runsAt(y).sort((p, q) => (q[1] - q[0]) - (p[1] - p[0])).slice(0, 2).sort((p, q) => p[0] - q[0]);
+      if (runs.length === 2 && runs[1][0] - runs[0][1] >= Math.max(2, w * 0.01)) {
+        left = (runs[0][0] + runs[0][1]) / 2;
+        right = (runs[1][0] + runs[1][1]) / 2;
+        break;
+      }
     }
-    return [{ x: 0.4, y: 0.97 }, { x: 0.6, y: 0.97 }];
+    if (left === null) {
+      // Feet drawn as one shape: put the jets on its left and right thirds.
+      const [run] = runsAt(bottom).sort((p, q) => (q[1] - q[0]) - (p[1] - p[0]));
+      const span = run[1] - run[0];
+      left = run[0] + span * 0.27;
+      right = run[1] - span * 0.27;
+    }
+    // Each sole: the lowest solid pixel near that boot's centre.
+    const sole = (cx) => {
+      for (let y = h - 1; y > 0; y--) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const x = Math.round(cx) + dx;
+          if (x >= 0 && x < w && solid(x, y)) return y;
+        }
+      }
+      return bottom;
+    };
+    return [{ x: left / w, y: sole(left) / h }, { x: right / w, y: sole(right) / h }];
   }
 
   // Picture file (data URL) -> { src: PNG data URL, framed: true when the background was kept }

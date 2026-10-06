@@ -34,44 +34,43 @@
 #suit.listen .art .reactor, #suit.talk .art .reactor { animation: reactor 0.9s ease-in-out infinite; }
 @keyframes reactor { 50% { opacity: 0.55; } }
 
-/* Boot jets: a blue outer flame with a white-hot core, flickering; length follows --thrust. */
+/* Boot jets: a glowing ring at each sole and a cone of blue fire straight down from it, white-hot
+   at the boot and fading to blue; its length follows --thrust. */
 #suit .flame {
   position: absolute;
   z-index: 1;
-  width: calc(var(--h) * 0.11);
-  height: calc(var(--h) * (0.08 + 0.5 * var(--thrust)));
+  width: calc(var(--h) * 0.075);
+  height: calc(var(--h) * (0.1 + 0.42 * var(--thrust)));
+  margin-top: calc(var(--h) * -0.012);
   transform: translateX(-50%);
   transform-origin: 50% 0;
   opacity: min(1, calc(var(--thrust) * 4));
-  border-radius: 45% 45% 50% 50% / 20% 20% 80% 80%;
-  background: radial-gradient(ellipse 50% 100% at 50% 0%, #ffffff 0%, #c7f5ff 22%, #38bdf8 55%, rgba(37, 99, 235, 0.55) 75%, rgba(37, 99, 235, 0) 100%);
-  filter: blur(1px) drop-shadow(0 0 6px rgba(56, 189, 248, 0.9));
-  animation: flicker 0.09s steps(2) infinite alternate;
+  filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.95)) drop-shadow(0 0 12px rgba(37, 99, 235, 0.6));
+  animation: flicker 0.08s steps(2) infinite alternate;
   pointer-events: none;
 }
 #suit .flame::after {
+  /* the jet: a tapering cone */
   content: '';
   position: absolute;
-  left: 25%;
-  top: 0;
-  width: 50%;
-  height: 45%;
-  border-radius: 50% 50% 50% 50% / 20% 20% 80% 80%;
-  background: radial-gradient(ellipse 50% 100% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0.85) 40%, rgba(186, 230, 253, 0) 100%);
+  inset: 0;
+  clip-path: polygon(4% 0, 96% 0, 64% 70%, 50% 100%, 36% 70%);
+  background: linear-gradient(to bottom, #ffffff 0%, #f0fbff 12%, #a5f3fc 30%, #38bdf8 55%, rgba(37, 99, 235, 0.65) 78%, rgba(37, 99, 235, 0) 100%);
 }
 #suit .flame::before {
-  /* the glow where the jet leaves the boot */
+  /* the glowing ring where the jet leaves the sole */
   content: '';
   position: absolute;
-  left: -60%;
-  top: -35%;
-  width: 220%;
-  height: calc(var(--h) * 0.09);
+  left: -25%;
+  top: calc(var(--h) * -0.012);
+  width: 150%;
+  height: calc(var(--h) * 0.035);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(224, 247, 255, 0.95) 0%, rgba(56, 189, 248, 0.5) 45%, rgba(56, 189, 248, 0) 70%);
+  background: radial-gradient(ellipse, #ffffff 0%, #cffafe 35%, rgba(56, 189, 248, 0.6) 65%, rgba(56, 189, 248, 0) 100%);
+  z-index: 1;
 }
-#suit .flame.f1 { animation-delay: 0.045s; }
-@keyframes flicker { from { transform: translateX(-50%) scaleY(0.88) scaleX(1.05); } to { transform: translateX(-50%) scaleY(1.06) scaleX(0.94); } }
+#suit .flame.f1 { animation-delay: 0.04s; }
+@keyframes flicker { from { transform: translateX(-50%) scaleY(0.9) scaleX(1.04); } to { transform: translateX(-50%) scaleY(1.05) scaleX(0.96); } }
 
 /* Palm repulsors: glow while flying and while throwing a hologram. */
 #suit .palm {

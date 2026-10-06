@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Jarvis — my commands & routines</title>
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+  <header>
+    <h1>My commands &amp; routines</h1>
+    <p>Say <b>“Jarvis, <i>name</i>”</b> and Jarvis does every step in order. One command per line, written the way you'd say it.</p>
+  </header>
+  <main id="list"></main>
+  <footer>
+    <button id="add">+ New command</button>
+    <span id="status"></span>
+    <button id="save" class="primary">Save</button>
+  </footer>
+  <template id="row">
+    <section class="cmd">
+      <div class="top">
+        <label>When I say “Jarvis,</label>
+        <input class="name" placeholder="work mode" spellcheck="false">
+        <label>”</label>
+        <button class="run" title="Run it now">▶ Run</button>
+        <button class="del" title="Delete">Delete</button>
+      </div>
+      <textarea class="steps" rows="3" placeholder="open chrome&#10;open slack&#10;volume 30" spellcheck="false"></textarea>
+      <div class="check"></div>
+    </section>
+  </template>
+  <script src="editor.js"></script>
+</body>
+</html>

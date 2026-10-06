@@ -1,0 +1,33 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  user-select: none;
+}
+
+/* The whole screen (minus the taskbar) is JARVIS's sky; everything except him lets clicks through. */
+#stage { position: absolute; inset: 0; }
+
+/* A small dark HUD bubble above JARVIS: what he heard and what he's doing. */
+#bubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: max-content;
+  max-width: 280px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: rgba(10, 15, 24, 0.9);
+  border: 1px solid rgba(103, 232, 249, 0.35);
+  color: #f3f4f6;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 12px rgba(56, 189, 248, 0.15);
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+#bubble.hidden { opacity: 0; }
+#label { font-size: 11px; color: #67e8f9; letter-spacing: 0.02em; margin-bottom: 2px; }
+#label:empty { display: none; }
+#text { font-size: 13px; line-height: 1.35; word-wrap: break-word; white-space: pre-line; }
+#text:empty { display: none; }

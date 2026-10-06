@@ -1,0 +1,32 @@
+:root {
+  --bg: #f7f4ee; --card: #ffffff; --ink: #2b2118; --muted: #7a6a58; --line: #e6dccd;
+  --accent: #d98a3d; --accent-ink: #ffffff; --ok: #15803d; --bad: #b91c1c;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1d1a17; --card: #27231f; --ink: #f3ece2; --muted: #b3a491; --line: #3a332c;
+    --accent: #e7a15b; --accent-ink: #1d1a17; --ok: #4ade80; --bad: #f87171; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+  display: flex; flex-direction: column; height: 100vh; }
+header { padding: 18px 20px 8px; }
+h1 { margin: 0 0 4px; font-size: 19px; }
+header p { margin: 0; color: var(--muted); }
+main { flex: 1; overflow: auto; padding: 8px 20px; }
+.cmd { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+.top { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.top label { color: var(--muted); white-space: nowrap; }
+.name { flex: 1; min-width: 0; font: inherit; font-weight: 600; padding: 6px 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: transparent; color: var(--ink); }
+textarea { width: 100%; font: 13px/1.5 Consolas, "Cascadia Mono", monospace; padding: 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: transparent; color: var(--ink); resize: vertical; }
+.check { margin-top: 6px; font-size: 12.5px; white-space: pre-line; }
+.check .ok { color: var(--ok); }
+.check .bad { color: var(--bad); }
+button { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card);
+  color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.del { color: var(--bad); }
+footer { display: flex; align-items: center; gap: 10px; padding: 12px 20px 16px; border-top: 1px solid var(--line); }
+#status { flex: 1; color: var(--muted); font-size: 13px; }

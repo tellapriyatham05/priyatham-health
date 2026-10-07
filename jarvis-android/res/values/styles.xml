@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:colorPrimary">#FF050B14</item>
+        <item name="android:colorPrimaryDark">#FF050B14</item>
+        <item name="android:colorAccent">#FF00E5FF</item>
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">#FF050B14</item>
+        <item name="android:navigationBarColor">#FF050B14</item>
+    </style>
+
+    <!-- The HUD sits on top of the phone's own wallpaper. -->
+    <style name="HudTheme" parent="@android:style/Theme.Wallpaper.NoTitleBar.Fullscreen">
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorAccent">#FF00E5FF</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
+    </style>
+</resources>

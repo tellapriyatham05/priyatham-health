@@ -1,0 +1,190 @@
+/* Iron Man on your screen: the suit, his boot and palm jets, and the cyan holograms he projects. */
+#suit {
+  --thrust: 0;
+  --voice: 0;
+  --h: 160px;
+  --cyan: #67e8f9;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 80px;
+  height: var(--h);
+  will-change: transform;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+#suit.present { opacity: 1; }
+#suit.dragging { cursor: grabbing; }
+
+/* Hovering: a gentle up-and-down drift, steadier while flying. */
+#suit .bob { position: absolute; inset: 0; animation: bob 2.6s ease-in-out infinite; }
+#suit.flying .bob, #suit.landed .bob { animation: none; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+
+#suit .body { position: absolute; inset: 0; transform-origin: 50% 50%; }
+#suit .art { position: absolute; inset: 0; z-index: 2; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35)); transition: filter 0.3s; }
+#suit .art img, #suit .art svg { width: 100%; height: 100%; display: block; pointer-events: none; }
+#suit.framed .art img { object-fit: cover; border-radius: 14px; border: 2px solid rgba(103, 232, 249, 0.7); box-shadow: 0 0 18px rgba(103, 232, 249, 0.45); }
+#suit.flying .art { filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 10px rgba(125, 211, 252, 0.35)); }
+#suit.paused .art { filter: grayscale(0.7) brightness(0.75); }
+
+/* Glowing eyes and arc reactor (built-in suit), brighter while listening or talking. */
+#suit .art .eyes, #suit .art .reactor { transition: opacity 0.2s; }
+#suit.listen .art .reactor, #suit.talk .art .reactor { animation: reactor 0.9s ease-in-out infinite; }
+@keyframes reactor { 50% { opacity: 0.55; } }
+
+/* Boot jets: a glowing ring at each sole and a cone of blue fire straight down from it, white-hot
+   at the boot and fading to blue; its length follows --thrust. */
+#suit .flame {
+  position: absolute;
+  z-index: 1;
+  width: calc(var(--h) * 0.075);
+  height: calc(var(--h) * (0.1 + 0.42 * var(--thrust)));
+  margin-top: calc(var(--h) * -0.012);
+  transform: translateX(-50%);
+  transform-origin: 50% 0;
+  opacity: min(1, calc(var(--thrust) * 4));
+  filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.95)) drop-shadow(0 0 12px rgba(37, 99, 235, 0.6));
+  animation: flicker 0.08s steps(2) infinite alternate;
+  pointer-events: none;
+}
+#suit .flame::after {
+  /* the jet: a tapering cone */
+  content: '';
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(4% 0, 96% 0, 64% 70%, 50% 100%, 36% 70%);
+  background: linear-gradient(to bottom, #ffffff 0%, #f0fbff 12%, #a5f3fc 30%, #38bdf8 55%, rgba(37, 99, 235, 0.65) 78%, rgba(37, 99, 235, 0) 100%);
+}
+#suit .flame::before {
+  /* the glowing ring where the jet leaves the sole */
+  content: '';
+  position: absolute;
+  left: -25%;
+  top: calc(var(--h) * -0.012);
+  width: 150%;
+  height: calc(var(--h) * 0.035);
+  border-radius: 50%;
+  background: radial-gradient(ellipse, #ffffff 0%, #cffafe 35%, rgba(56, 189, 248, 0.6) 65%, rgba(56, 189, 248, 0) 100%);
+  z-index: 1;
+}
+#suit .flame.f1 { animation-delay: 0.04s; }
+@keyframes flicker { from { transform: translateX(-50%) scaleY(0.9) scaleX(1.04); } to { transform: translateX(-50%) scaleY(1.05) scaleX(0.96); } }
+
+/* Palm repulsors: glow while flying and while throwing a hologram. */
+#suit .palm {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  width: calc(var(--h) * 0.12);
+  height: calc(var(--h) * 0.12);
+  margin: calc(var(--h) * -0.06);
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0%, rgba(165, 243, 252, 0.85) 30%, rgba(56, 189, 248, 0) 70%);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+#suit .palm.p0 { left: 12%; }
+#suit .palm.p1 { left: 88%; }
+#suit.flying .palm, #suit.throw .palm { opacity: 0.9; }
+
+/* Motion trail while flying. */
+.ghost { position: absolute; left: 0; top: 0; opacity: 0; pointer-events: none; transform-origin: 50% 50%; filter: blur(2px) saturate(1.2); }
+.ghost img, .ghost svg { width: 100%; height: 100%; display: block; }
+
+/* ---------------------------------------------------------------- holograms */
+#suit .holo {
+  position: absolute;
+  z-index: 4;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: none;
+  color: var(--cyan);
+  filter: drop-shadow(0 0 4px rgba(103, 232, 249, 0.9));
+}
+#suit .holo svg { width: 100%; height: 100%; overflow: visible; }
+#suit .holo svg * { fill: none; stroke: var(--cyan); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+#suit .holo svg .thin { stroke-width: 1.6; opacity: 0.8; }
+#suit .holo svg .dash { stroke-dasharray: 10 7; }
+#suit.flying .holo { opacity: 0 !important; }
+
+/* listening: sound waves beside his head */
+.h-waves { left: 100%; top: 6%; width: 34px; height: 40px; }
+.h-waves i { position: absolute; left: 0; top: 50%; width: 12px; height: 12px; margin-top: -6px; border: 2px solid var(--cyan); border-left: 0; border-top-color: transparent; border-bottom-color: transparent; border-radius: 50%; opacity: 0; animation: wave 1.2s infinite; }
+.h-waves i:nth-child(2) { animation-delay: 0.3s; }
+.h-waves i:nth-child(3) { animation-delay: 0.6s; }
+@keyframes wave { 0% { opacity: 0.9; transform: scale(0.6); } 100% { opacity: 0; transform: scale(2.6) translateX(6px); } }
+#suit.listen .h-waves { opacity: 1; transform: none; }
+#suit.hearing .h-waves i { animation-duration: 0.6s; }
+
+/* thinking: spinning HUD rings around him */
+.h-rings { left: -30%; top: 2%; width: 160%; height: calc(var(--h) * 0.75); }
+.h-rings svg { animation: spin 3s linear infinite; }
+.h-rings .rev { animation: spin 2s linear infinite reverse; transform-origin: 50% 50%; }
+#suit.think .h-rings { opacity: 0.85; transform: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* searching: a magnifier scanning to and fro */
+.h-search { left: 88%; top: 18%; width: calc(var(--h) * 0.3); height: calc(var(--h) * 0.3); }
+#suit.act-search .h-search { opacity: 1; transform: none; animation: sweep 1.2s ease-in-out infinite alternate; }
+@keyframes sweep { from { translate: -6px 4px; } to { translate: 10px -6px; } }
+
+/* opening an app: a hologram window thrown from his hand */
+.h-launch { left: 70%; top: 30%; width: calc(var(--h) * 0.42); height: calc(var(--h) * 0.3); }
+#suit.act-launch .h-launch { opacity: 1; transform: none; }
+#suit.throw .h-launch { animation: throw 0.9s ease-out forwards; }
+@keyframes throw { 0% { translate: 0 0; scale: 0.5; opacity: 1; } 70% { opacity: 1; } 100% { translate: -160px -120px; scale: 2.2; opacity: 0; } }
+
+/* typing / dictation: a holographic keyboard at his hands */
+.h-type { left: -25%; top: 62%; width: 150%; height: calc(var(--h) * 0.16); }
+.h-type .keys { stroke-dasharray: 6 4; animation: keys 0.4s steps(3) infinite; }
+@keyframes keys { to { stroke-dashoffset: 20; } }
+#suit.act-type .h-type, #suit.dictate .h-type { opacity: 1; transform: none; }
+
+/* music / volume: notes floating up */
+.h-music { left: 85%; top: 0; width: 40px; height: 60px; font: 700 20px "Segoe UI Symbol", sans-serif; }
+.h-music span { position: absolute; left: 0; bottom: 0; opacity: 0; animation: note 1.8s infinite; }
+.h-music span:nth-child(2) { left: 14px; animation-delay: 0.6s; }
+.h-music span:nth-child(3) { left: 4px; animation-delay: 1.2s; }
+@keyframes note { 0% { opacity: 0; transform: translateY(10px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-40px) rotate(15deg); } }
+#suit.act-music .h-music { opacity: 1; transform: none; }
+
+/* Wi-Fi / Bluetooth */
+.h-signal { left: 88%; top: 8%; width: calc(var(--h) * 0.28); height: calc(var(--h) * 0.28); }
+.h-signal path { animation: blink 1.2s infinite; }
+.h-signal path:nth-of-type(2) { animation-delay: 0.2s; }
+.h-signal path:nth-of-type(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+#suit.act-signal .h-signal { opacity: 1; transform: none; }
+
+/* timers and reminders */
+.h-bell { left: 86%; top: 2%; width: calc(var(--h) * 0.26); height: calc(var(--h) * 0.26); }
+#suit.act-bell .h-bell { opacity: 1; transform: none; animation: ring 0.5s ease-in-out infinite alternate; }
+@keyframes ring { from { rotate: -14deg; } to { rotate: 14deg; } }
+
+/* time, battery, system: a radar sweep */
+.h-scan { left: -20%; top: 10%; width: 140%; height: calc(var(--h) * 0.6); }
+.h-scan .sweep { transform-origin: 50px 50px; animation: spin 1.4s linear infinite; }
+#suit.act-scan .h-scan { opacity: 0.85; transform: none; }
+
+/* asking "Sure?" before a restart or shutdown */
+.h-confirm { left: 80%; top: 0; }
+.h-confirm div { font: 600 13px "Segoe UI", sans-serif; padding: 3px 9px; border: 2px solid var(--cyan); border-radius: 6px; background: rgba(8, 47, 73, 0.6); }
+#suit.confirm .h-confirm { opacity: 1; transform: none; }
+
+/* done: a check mark that pops */
+.h-happy { left: 80%; top: 4%; width: calc(var(--h) * 0.24); height: calc(var(--h) * 0.24); }
+#suit.happy .h-happy { opacity: 1; transform: none; animation: pop 0.5s ease-out; }
+@keyframes pop { 0% { scale: 0.3; } 70% { scale: 1.2; } 100% { scale: 1; } }
+
+/* didn't understand */
+.h-confused { left: 82%; top: 0; font: 700 28px "Segoe UI", sans-serif; }
+#suit.confused .h-confused { opacity: 1; transform: none; animation: pop 0.5s ease-out; }
+#suit.confused .body { animation: tiltHead 1.2s ease-in-out; }
+@keyframes tiltHead { 30%, 70% { rotate: -8deg; } }
+
+/* talking: the reactor and eyes pulse with his voice */
+#suit.talk .art { filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 calc(4px + 14px * var(--voice)) rgba(125, 211, 252, 0.8)); }

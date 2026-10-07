@@ -1,0 +1,107 @@
+name: JARVIS Desktop (Iron Man)
+
+on:
+  push:
+    paths: ["jarvis-desktop/**", ".github/workflows/jarvis-desktop.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: jarvis-desktop
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: jarvis-desktop/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Parser and timer tests
+        run: npm test
+
+      - name: Speech and voice models (cached)
+        id: models
+        uses: actions/cache@v4
+        with:
+          path: jarvis-desktop/models
+          key: jarvis-models-v1
+
+      - name: Download speech and voice models
+        if: steps.models.outputs.cache-hit != 'true'
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          $asr = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models'
+          $tts = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models'
+          New-Item -ItemType Directory -Force models, dl | Out-Null
+          Invoke-WebRequest "$asr/silero_vad.onnx" -OutFile models/silero_vad.onnx
+          foreach ($name in 'tiny.en', 'small') {
+            Invoke-WebRequest "$asr/sherpa-onnx-whisper-$name.tar.bz2" -OutFile "dl/$name.tar.bz2"
+            tar -xjf "dl/$name.tar.bz2" -C dl
+            Copy-Item "dl/sherpa-onnx-whisper-$name/$name-encoder.int8.onnx", "dl/sherpa-onnx-whisper-$name/$name-decoder.int8.onnx", "dl/sherpa-onnx-whisper-$name/$name-tokens.txt" models/
+          }
+          Invoke-WebRequest "$tts/kokoro-multi-lang-v1_0.tar.bz2" -OutFile dl/kokoro.tar.bz2
+          tar -xjf dl/kokoro.tar.bz2 -C dl
+          Move-Item dl/kokoro-multi-lang-v1_0 models/kokoro
+          # Chinese word lists aren't needed for an English JARVIS.
+          Remove-Item -Recurse -Force models/kokoro/dict, models/kokoro/lexicon-zh.txt -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force dl
+
+      - name: Models
+        run: |
+          Get-ChildItem models | Format-Table Name, Length
+          Get-ChildItem models/kokoro | Format-Table Name, Length
+
+      - name: Voice test (recorded voices through the real app)
+        run: npm run test:voice
+        timeout-minutes: 15
+
+      - name: Log from the voice test
+        if: always()
+        run: |
+          $log = Join-Path $env:APPDATA 'JARVIS\jarvis.log'
+          if (Test-Path $log) { Get-Content $log -Tail 200 }
+
+      - name: Build installer
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          node scripts/gen-icon.js
+          npm run dist
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Packaged app starts and speaks
+        run: |
+          $exe = Get-ChildItem dist/win-unpacked -Filter 'JarvisAssistant.exe' | Select-Object -First 1
+          $env:JARVIS_SAY = 'Jarvis online. At your service, sir.'
+          $p = Start-Process $exe.FullName -PassThru
+          Start-Sleep 40
+          $log = Join-Path $env:APPDATA 'JARVIS\jarvis.log'
+          $text = if (Test-Path $log) { Get-Content $log -Raw } else { '' }
+          Write-Output ($text.Substring([Math]::Max(0, $text.Length - 4000)))
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Get-Process JarvisAssistant -ErrorAction SilentlyContinue | Stop-Process -Force
+          if ($text -notmatch 'engine ready') { throw 'The speech engine did not start in the packaged app' }
+          if ($text -notmatch 'voice ready') { throw 'The voice did not start in the packaged app' }
+          if ($text -match 'Failed to convert|Failed to phonemize') { throw 'The voice could not turn text into speech' }
+          if ($text -match 'speech playback failed|voice error') { Write-Warning 'Voice playback reported a problem (no speakers on the build server?)' }
+
+      - name: Publish download (GitHub release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "jarvis-desktop-latest"
+          gh release delete $tag --yes --cleanup-tag 2>$null
+          gh release create $tag "dist/JARVIS-Setup.exe" --target $env:GITHUB_SHA --prerelease `
+            --title "JARVIS Desktop — Iron Man (latest build)" `
+            --notes "Download JARVIS-Setup.exe and double-click it. Say ""Jarvis"" and a command. Built from $env:GITHUB_SHA."

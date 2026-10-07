@@ -1,0 +1,11 @@
+PySide6-Essentials==6.11.2
+numpy>=1.26
+onnxruntime>=1.20
+sounddevice>=0.5
+vosk==0.3.45
+faster-whisper>=1.1
+pywin32>=306; sys_platform == "win32"
+comtypes>=1.4; sys_platform == "win32"
+pycaw>=20240316; sys_platform == "win32"
+screen-brightness-control>=0.24
+psutil>=6.0

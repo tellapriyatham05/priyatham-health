@@ -1,249 +1,114 @@
-<div align="center">
+# JARVIS
 
-<img src="brand/logo-icon-1024.png" width="120" alt="Priyatham Health logo">
+Two apps: **JARVIS for Windows** (laptop, below) and **JARVIS for Android** (phone, further down).
 
-# Priyatham Health
+## JARVIS for Windows
 
-**A personal health companion for Android that remembers everything for you.**
-Water · workouts · GPS rides · weekly meal plans with prep alarms · calories & protein · sleep · weight · screen time across phone and laptops.
+Say **"Jarvis"** (or "Hey Jarvis", click the character, or press **Ctrl+Alt+J**): your character flies across the
+screen and lands in the corner, like a desktop companion. A small, clean card next to it shows what you said and the
+reply. It stays there while you work; say **"Jarvis, hide"** and it flies away. Offline, no API keys.
 
-![Platform](https://img.shields.io/badge/platform-Android%206%2B-0A0A0B?style=flat-square&labelColor=0A0A0B&color=C9A45C)
-![Version](https://img.shields.io/badge/version-1.1-0A0A0B?style=flat-square&labelColor=0A0A0B&color=C9A45C)
-![Built with](https://img.shields.io/badge/built%20with-Capacitor%207%20%2B%20Java-0A0A0B?style=flat-square&labelColor=0A0A0B&color=C9A45C)
-![Data](https://img.shields.io/badge/data-stays%20on%20your%20devices-0A0A0B?style=flat-square&labelColor=0A0A0B&color=C9A45C)
+- **Your own character:** Settings → Character → *Choose image…* (for example your Iron Man picture). The background
+  is removed on your laptop and the figure is animated: fly-in, floating, glowing while it talks. Drag it anywhere.
+- **Voice:** Windows' offline voices, preferring the Indian-English male voice (Microsoft Ravi) when installed.
+- **Fast:** recording starts the moment you say "Jarvis", actions start while JARVIS is still speaking, and the slower
+  Whisper double-check only runs when the quick recogniser wasn't understood.
 
-[**⬇ Download the APK**](https://github.com/tellapriyatham05/priyatham-health/releases/latest) · [Features](docs/FEATURES.md) · [Install on Android](docs/INSTALL-ANDROID.md) · [Connect laptops](docs/LAPTOP-SETUP.md) · [Build from source](docs/BUILD-FROM-SOURCE.md)
+**Download:** [JARVIS-Windows.zip](https://github.com/tellapriyatham05/priyatham-health/releases/tag/jarvis-windows-latest)
+→ unzip → run `JARVIS.exe` (SmartScreen: More info → Run anyway). Details in `jarvis-windows/README-WINDOWS.txt`.
 
-</div>
+Commands: open apps/projects/folders/websites, close apps, coding/study/good-night routines, volume, brightness,
+Wi-Fi and Bluetooth, media keys, YouTube and Google, timers, reminders, alarms, memory ("remember MediaAI is my main
+project"), screen time and app limits, lock/sleep/shut down (asks first), screenshot, type text, read clipboard.
 
----
-
-## Contents
-
-- [Why this app](#why-this-app)
-- [Screenshots](#screenshots)
-- [Features at a glance](#features-at-a-glance)
-- [Quick start](#quick-start)
-- [How it works](#how-it-works)
-- [Repository structure](#repository-structure)
-- [Build from source](#build-from-source)
-- [Privacy](#privacy)
-- [Roadmap](#roadmap)
+Built with Python (PySide6, openWakeWord + Vosk + Whisper offline speech, U²-Net background removal, Windows SAPI
+voices) by `jarvis-windows/build_windows.ps1`; GitHub Actions builds, tests and publishes the zip on every push.
 
 ---
 
-## Why this app
+# JARVIS for Android
 
-Most health apps are abandoned within 1–3 months: too many notifications, too much typing, and nagging that makes you feel guilty. Priyatham Health is built the other way round:
+A personal voice assistant for Android that works offline. Say **"Hey Jarvis"** and a full-screen
+JARVIS display appears: an animated holographic face, your notifications, RAM, storage, battery,
+screen time and app limits. Give a command and JARVIS does it, then answers in a robotic voice.
 
-| Principle | What it means in the app |
-|---|---|
-| **Smart, polite reminders** | Water nudges skip if you just drank. Stand breaks only during work hours. Quiet hours at night. |
-| **Real alarms when it matters** | Cooking prep, workouts and weekly planning **ring** (or **vibrate** on silent) until you tick them. |
-| **One tap per log** | +250 ml straight from the notification. "Ate it" confirms a planned meal. |
-| **Automatic where possible** | Steps from the phone's sensor, GPS rides, and screen time from your phone and laptops. |
-| **Private by default** | No account and no cloud. Everything is stored on your phone. |
+No cloud, no AI service, no API keys. The wake word, speech and command handling run on the phone.
 
----
+**[Download JARVIS.apk](jarvis-android/release/JARVIS.apk)** (phone version, v1.0)
 
-## Screenshots
+## Install on your OnePlus
 
-<table>
-  <tr>
-    <td align="center"><img src="docs/screenshots/today.png" width="230"><br><sub><b>Today</b>: score + timeline</sub></td>
-    <td align="center"><img src="docs/screenshots/meals.png" width="230"><br><sub><b>Weekly meal plan</b></sub></td>
-    <td align="center"><img src="docs/screenshots/prep.png" width="230"><br><sub><b>Prep countdown</b></sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/move.png" width="230"><br><sub><b>Move</b>: routines & rides</sub></td>
-    <td align="center"><img src="docs/screenshots/timer.png" width="230"><br><sub><b>Workout timer</b> with voice coach</sub></td>
-    <td align="center"><img src="docs/screenshots/insights.png" width="230"><br><sub><b>Screen time</b>: phone + 2 laptops</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/food.png" width="230"><br><sub><b>Calories & protein</b></sub></td>
-    <td align="center"><img src="docs/screenshots/sleep.png" width="230"><br><sub><b>Sleep</b> check-in & trend</sub></td>
-    <td align="center"><img src="docs/screenshots/alerts.png" width="230"><br><sub><b>Alarm styles</b> per reminder</sub></td>
-  </tr>
-</table>
+1. Copy `JARVIS.apk` to the phone and open it. Allow "Install unknown apps" for your file manager or browser when asked.
+2. If Play Protect warns that the app was built for an older Android version, tap **More details → Install anyway**.
+   JARVIS targets Android 9 on purpose so it can switch Wi-Fi and Bluetooth for you.
+3. Open **JARVIS** and go through **Setup** from top to bottom. Each row has an **Allow** button.
+4. **Notification access** and the **JARVIS helper** are "restricted settings" for apps installed from a file. If their
+   switch is greyed out: Settings → Apps → JARVIS → ⋮ (top right) → **Allow restricted settings**, then try again.
+5. On OnePlus, also set Settings → Apps → JARVIS → Battery → **Unrestricted**, so "Hey Jarvis" keeps working all day.
+6. Tap **Offline speech recognition** once, on Wi-Fi, to download Google's offline English speech pack.
+7. Tap **Start listening**, then say "Hey Jarvis".
 
-<details>
-<summary>More screens</summary>
+Other ways to open JARVIS: the **Talk to JARVIS** icon, the **JARVIS** Quick Settings tile, or the "Talk" button
+in the listening notification.
 
-| Water | Weight & body | GPS ride |
-|---|---|---|
-| <img src="docs/screenshots/water.png" width="230"> | <img src="docs/screenshots/body.png" width="230"> | <img src="docs/screenshots/ride.png" width="230"> |
+## What you can say
 
-</details>
+| Area | Examples |
+| --- | --- |
+| Calls | "call Priyatham", "call 98480 12345" |
+| Messages | "message Priyatham that I'll reach in 10 minutes", "text Mom I'm on the way", "WhatsApp Priyatham I'll be late" |
+| Follow-ups | "message Priyatham" → "What should I say?" → "tell him I'll come at 6" |
+| Notifications | "read my notifications", "read my WhatsApp messages", "what did Priyatham say", "reply I'll call you later", "clear notifications" |
+| Phone controls | "brightness 40 percent", "increase brightness", "Wi-Fi off", "Bluetooth on", "torch on", "volume up", "mute", "do not disturb on", "silent mode", "lock the phone", "take a screenshot" |
+| Apps and web | "open Instagram", "open YouTube", "open wifi settings", "search for biryani near me", "play arijit songs on YouTube" |
+| Music | "play music", "play Believer", "pause", "next song", "previous song" |
+| Clock | "set an alarm for 6:30 am", "wake me up at 7", "set a timer for 5 minutes", "remind me tomorrow at 10 am to pay rent", "remind me in 20 minutes to call Mom" |
+| Phone info | "what time is it", "what's the date", "battery", "how much RAM", "storage", "system status", "screen time", "how long have I used Instagram today" |
+| Memory | "remember MediaAI is my main project", "remember my playlist is Workout Mix", "what do you remember", "forget my main project" |
+| Routines | "good night", "good morning", "coding mode", "study mode", "gym mode", "driving mode" (edit them in the app) |
+| Health | "log 500 ml water", "I drank a glass of water", "how much water today", "log my weight 72" |
+| Voice | "speak faster", "speak slower", "switch to robot voice", "change your voice" |
+| Conversation | "stop", "thank you", "who are you", "what can you do" |
 
----
+Anything JARVIS doesn't understand is listed under **Recent commands** in the app, so new phrasings can be added later.
 
-## Features at a glance
+## Settings in the app
 
-| Area | Highlights |
-|---|---|
-| ⏰ **Alarms & reminders** | Real alarms that **ring when sound is on and vibrate on silent**, plus a full-screen alarm and a notification. Choose Alarm / Notification / Vibrate per reminder type. Survives reboots. |
-| 🍳 **Meal planner + prep alarms** | Weekly breakfast/lunch/dinner grid. Recipes carry prep steps (soak → grind → ferment…). The app **counts back from mealtime**, moves steps out of your sleep hours, and repeats every 15 min, getting more urgent up to the **final call**. |
-| 🥗 **Calories & protein** | 40+ Indian non-veg foods, 23 recipes, one-tap "Ate it" for planned meals. Personal kcal and protein targets. |
-| 🏋️ **Workouts** | Build your own routines. Big countdown ring, **voice coach**, 3-2-1 beeps, auto-logged calories. |
-| 🚴 **GPS cycling** | Tap *Start ride*: km, speed, calories, climb and a route drawing. Keeps recording with the screen off. |
-| 💧 **Water** | Goal from your weight (+500 ml on active days), animated glass, smart nudges. |
-| 😴 **Sleep** | 5-second morning check-in, 7-night chart against the 7–9 h target, bedtime consistency, and late-night phone-use insight. |
-| ⚖️ **Weight & body** | Trend line, BMI, waist, goal ETA at a safe pace. |
-| 💻 **Screen time** | Phone (Android Usage Access) + **two Windows laptops** via free ActivityWatch over home Wi-Fi. Work vs leisure, "is this healthy?" checks. |
-| 📅 **Weekly ritual** | Saturday 6 pm alarm to plan next week's meals, with a shopping list and "copy last week". |
+- **Voice style:** Classic JARVIS (robotic), Full robot, Calm, Professional. Plus voice picker, speaking speed, and what JARVIS calls you.
+- **Reply style:** JARVIS ("..., sir"), Friendly, or Short.
+- **Wake word sensitivity:** move left if JARVIS wakes by mistake, right if it misses you.
+- **Routines:** one per line, `name: command; command; ...`
+- **Daily app limits:** `app: minutes`. Shown on the HUD, with a notification when you pass one.
+- **"Message ..." sends with:** WhatsApp (default) or SMS. "Text ..." and "SMS ..." always use SMS.
 
-➡ Full details: **[docs/FEATURES.md](docs/FEATURES.md)**
+## Limits of this version
 
----
-
-## Quick start
-
-### 📱 On your Android phone
-1. Download **`PriyathamHealth-v1.1.apk`** from **[Releases](https://github.com/tellapriyatham05/priyatham-health/releases/latest)** (on the phone, or copy it over).
-2. Tap it → allow *Install unknown apps* for your browser/Files → **Install** (if Play Protect warns: *More details → Install anyway*).
-3. Open the app, fill in the welcome screen, then allow each permission on **Set up your phone**.
-4. On OnePlus/Oppo/Xiaomi/Samsung phones, set battery to **Unrestricted** so alarms can't be killed.
-
-➡ Step-by-step, including every Android prompt you'll see: **[docs/INSTALL-ANDROID.md](docs/INSTALL-ANDROID.md)**
-
-### 💻 On each Windows laptop (optional, for screen time)
-1. Install **[ActivityWatch](https://github.com/ActivityWatch/activitywatch/releases/latest)** (free) and start it once.
-2. Download this repo (green **Code → Download ZIP**) and run, in a normal PowerShell window:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\laptop\setup-laptop.ps1
-   ```
-3. Set your Wi-Fi to **Private** and add the firewall rule the script prints (these are the only admin steps).
-4. In the app: **Insights → Connect laptops →** the IP the script printed, port `5600` → **Test & add**.
-
-➡ Full guide and troubleshooting: **[docs/LAPTOP-SETUP.md](docs/LAPTOP-SETUP.md)**
-
-### 🛠 From source (developers)
-```bash
-git clone https://github.com/tellapriyatham05/priyatham-health.git
-cd priyatham-health
-npm install
-npx cap sync android
-cd android && ./gradlew assembleDebug        # Windows: gradlew.bat assembleDebug
-```
-➡ Toolchain setup and signing: **[docs/BUILD-FROM-SOURCE.md](docs/BUILD-FROM-SOURCE.md)**
-
----
+- The wake word is **"Hey Jarvis"**. The free offline model is trained on that phrase, not "Jarvis" alone.
+- Commands follow fixed phrase patterns (see the table). Without an AI model, free-form questions are sent to a web search.
+- Laptop control, cross-device commands and "what's on my screen" are not in this version.
+- Mobile data, airplane mode, hotspot and location can only be switched by you on Android; JARVIS opens the right panel.
+- WhatsApp sending is automatic only with the JARVIS helper (Accessibility) on; otherwise you tap Send.
 
 ## How it works
 
-```mermaid
-flowchart LR
-  subgraph Phone["📱 Android phone"]
-    UI["Web UI (www/)<br/>HTML · CSS · vanilla JS"]
-    Plugin["Companion plugin (Java)<br/>alarms · GPS · steps · usage · voice"]
-    Store[("Preferences<br/>app data")]
-    UI <--> Plugin
-    UI <--> Store
-  end
-  subgraph L1["💻 Laptop 1"]
-    AW1["ActivityWatch :5600"]
-  end
-  subgraph L2["💻 Laptop 2"]
-    AW2["ActivityWatch :5600"]
-  end
-  UI -- "home Wi-Fi · HTTP query" --> AW1
-  UI -- "home Wi-Fi · HTTP query" --> AW2
-```
+`jarvis-android/` is a plain Java Android app (no Gradle):
 
-- **UI**: a fast single-page app (no framework) in [`www/`](www), wrapped by **Capacitor 7**.
-- **Native layer**: one Java plugin, [`CompanionPlugin`](android/app/src/main/java/com/priyatham/health/CompanionPlugin.java), handles exact alarms (`AlarmManager.setAlarmClock`), full-screen alarm activity, ringer-aware ring/vibrate, a GPS foreground service, the hardware step counter, `UsageStatsManager` screen time and text-to-speech.
-- **Laptops**: [ActivityWatch](https://activitywatch.net) records app usage locally. The phone asks each laptop for today's per-app totals when both are on the same Wi-Fi.
+| File | Job |
+| --- | --- |
+| `JarvisService` | Foreground service; runs the wake-word detector on the microphone |
+| `WakeWordEngine` | openWakeWord "hey jarvis" models on ONNX Runtime (mel spectrogram → embedding → classifier) |
+| `HudActivity`, `FaceView` | Full-screen display, animated face with lip-synced mouth, panels |
+| `CommandParser`, `Brain`, `Actions` | Phrase patterns → intent; context and memory; the actual phone actions |
+| `Speaker` | Offline Android text-to-speech plus a ring-modulator/comb filter for the robotic voice |
+| `NotifListener`, `JarvisAccessibility` | Notifications; WhatsApp Send button, lock, screenshot, Quick Settings fallback |
 
-➡ Deep dive: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
+Build it with `jarvis-android/build.sh` (needs a JDK and `apt-get install aapt dalvik-exchange zipalign apksigner`).
+The APK is signed with `jarvis-android/keystore/jarvis.keystore`, so new builds install over old ones.
 
----
+## Credits and licences
 
-## Repository structure
+- Wake-word models: [openWakeWord](https://github.com/dscripka/openWakeWord) by David Scripka. The pretrained models
+  are licensed CC BY-NC-SA 4.0, so this app is for personal, non-commercial use.
+- [ONNX Runtime](https://github.com/microsoft/onnxruntime), MIT licence.
 
-```text
-priyatham-health/
-├── www/                      # the app UI (single-page app, no build step)
-│   ├── index.html
-│   ├── styles.css            # brand: black · white · muted gold
-│   ├── core.js               # state, reminder engine, prep planner, scoring
-│   ├── ui.js                 # router, icons, rings, sheets, nav
-│   ├── views-today.js        # welcome, setup, Today, alarms, settings
-│   ├── views-move.js         # routines, workout timer, GPS ride
-│   ├── views-food.js         # meal plan, prep, recipes, food log, water
-│   ├── views-insights.js     # screen time, laptops, sleep, body
-│   ├── native.js             # bridge to the Java plugin (+ browser fallbacks)
-│   └── data.js               # default foods, recipes, exercises, routines
-├── android/                  # Capacitor Android project
-│   └── app/src/main/java/com/priyatham/health/
-│       ├── CompanionPlugin.java   # JS ⇄ native API
-│       ├── AlarmScheduler.java    # exact alarms, repeats, windows
-│       ├── AlarmReceiver.java     # ring / vibrate / notify
-│       ├── AlarmActivity.java     # full-screen ringing alarm
-│       ├── ActionReceiver.java    # Done · Snooze · +250 ml buttons
-│       ├── RideService.java       # GPS foreground service
-│       ├── Steps.java             # hardware step counter
-│       ├── BootReceiver.java      # re-arm after reboot/update
-│       └── Store.java
-├── laptop/                   # Windows helpers for ActivityWatch
-│   ├── setup-laptop.ps1      # one-command setup
-│   ├── aw-keepalive.ps1      # hidden auto-start + self-heal
-│   └── uninstall-autostart.ps1
-├── brand/                    # logo (PNG, SVG, lockup)
-├── docs/                     # guides, screenshots, printable PDF
-├── tools/                    # logo generator, screenshot seeder
-├── capacitor.config.json
-├── package.json
-└── CHANGELOG.md
-```
-
----
-
-## Build from source
-
-| Need | Version |
-|---|---|
-| Node.js | 20+ |
-| JDK | 21 (Temurin) |
-| Android SDK | platform 35, build-tools 35 |
-
-```bash
-npm install
-npx cap sync android
-cd android
-./gradlew assembleRelease   # signed if android/keystore.properties exists
-```
-
-Preview the UI in a desktop browser (native features are simulated):
-```bash
-cd www && python -m http.server 8765    # open http://localhost:8765
-```
-
-➡ Details, signing and troubleshooting: **[docs/BUILD-FROM-SOURCE.md](docs/BUILD-FROM-SOURCE.md)**
-
----
-
-## Privacy
-
-- **No account, no server, no analytics.** App data lives in the phone's app storage.
-- Laptop screen time is read **directly over your home Wi-Fi**. The firewall rule only opens port 5600 on *Private* networks.
-- Backups are a copy-paste text blob you control (*Settings → Copy backup*).
-- Health targets and tips are general wellness guidance, **not medical advice**.
-
----
-
-## Roadmap
-
-- [ ] Health diary: symptoms, reports, doctor-visit PDF
-- [ ] Weekly review screen with trends and one small goal
-- [ ] Map tiles for rides (currently route-only drawing)
-- [ ] Optional encrypted cloud backup
-- [ ] Home-screen widget (water + today's score)
-
-See **[CHANGELOG.md](CHANGELOG.md)** for release history.
-
----
-
-<div align="center">
-<img src="brand/logo-lockup-1200.png" width="220" alt="Priyatham Health">
-<br><sub>Designed and built for Priyatham · black, white & muted gold</sub>
-</div>
+The previous app in this repository, Priyatham Health v1.1, is still in the git history (commit `01a822e`).

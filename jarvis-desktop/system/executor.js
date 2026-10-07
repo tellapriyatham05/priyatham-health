@@ -206,10 +206,11 @@ class Executor {
     let context = {};
     for (let i = 0; i < actions.length; i++) {
       const action = actions[i];
-      const before = await this.foreground();
+      const before = await withTimeout(this.foreground(), 5000, 'foreground').catch(() => ({ hwnd: '0', process: '', title: '' }));
       let result;
       try {
-        result = await this.runOne(action, context, before);
+        // No job may hang JARVIS: after 25 s it counts as failed and he listens again.
+        result = await withTimeout(this.runOne(action, context, before), 25000, `"${action.say || action.kind}" took too long`);
         result = { ok: true, say: action.say, ...result };
       } catch (err) {
         result = { ok: false, say: action.say, error: err.message };
@@ -625,4 +626,12 @@ function cpuPercent() {
     const b = snap();
     resolve(Math.round(100 * (1 - (b.idle - a.idle) / Math.max(1, b.all - a.all))));
   }, 400));
+}
+
+function withTimeout(promise, ms, what) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(what)), ms); }),
+  ]).finally(() => clearTimeout(timer));
 }

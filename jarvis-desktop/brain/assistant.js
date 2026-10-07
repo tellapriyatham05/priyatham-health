@@ -147,7 +147,11 @@ class Assistant {
   async onSegment({ id, text, sec }) {
     if (this.paused || !text) return;
     if (this.mode === 'dictating') return this.dictate(id, text);
-    if (this.busy) return; // ignore talk while a command is running
+    if (this.busy && Date.now() - this.busySince > 30000) {
+      this.log('a job was stuck for 30 s; listening again');   // safety net, should never happen
+      this.busy = false;
+    }
+    if (this.busy) { this.log(`ignored while busy: ${text}`); return; } // talk during a running job
 
     const wake = detectWake(text);
     const said = wake.found ? wake.rest : text;
@@ -344,6 +348,7 @@ class Assistant {
   // ------------------------------------------------------------------ doing things
   async execute(actions, spokenText = '') {
     this.busy = true;
+    this.busySince = Date.now();
     this.setMode('doing');
     const lines = actions.map((a) => `… ${a.say || a.kind}`);
     this.ui({ dot: 'thinking', label: 'Working…', text: lines.join('\n'), activity: activityFor(actions[0]) });

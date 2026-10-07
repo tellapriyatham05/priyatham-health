@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('jarvis', {
   onSpeak: (callback) => ipcRenderer.on('speak', (_event, audio) => callback(audio)),
   onLook: (callback) => ipcRenderer.on('look', (_event, look) => callback(look)),
   onVisibility: (callback) => ipcRenderer.on('visibility', (_event, hidden) => callback(hidden)),
+  onRestartMic: (callback) => ipcRenderer.on('restart-mic', () => callback()),
   onPrepareImage: (callback) => ipcRenderer.on('prepare-image', (_event, src) => callback(src)),
   imagePrepared: (result) => ipcRenderer.send('image-prepared', result),
   spoke: (id, error) => ipcRenderer.send('spoke', { id, error }),

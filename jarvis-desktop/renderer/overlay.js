@@ -184,12 +184,23 @@ window.addEventListener('resize', () => suit.resize());
 
 // ------------------------------------------------------------------ microphone
 let micLevelTimer = null;
+let micParts = null;
+function stopMic() {
+  if (!micParts) return;
+  try { micParts.stream.getTracks().forEach((t) => t.stop()); } catch { /* gone */ }
+  micParts.ctx.close().catch(() => {});
+  micParts = null;
+}
+window.jarvis.onRestartMic(() => { stopMic(); startMic(); });
+
 async function startMic() {
   try {
+    stopMic();
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
     const micCtx = new AudioContext({ sampleRate: 16000 });
+    micParts = { stream, ctx: micCtx };
     // e.g. the mic or headset was unplugged: start over in a moment
     micCtx.onerror = () => { micCtx.close().catch(() => {}); stream.getTracks().forEach((t) => t.stop()); setTimeout(startMic, 2000); };
     stream.getAudioTracks()[0].onended = () => { micCtx.close().catch(() => {}); setTimeout(startMic, 2000); };

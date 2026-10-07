@@ -25,7 +25,7 @@ class WinHelper {
       lines.on('line', (line) => {
         let msg;
         try { msg = JSON.parse(line.replace(/^﻿/, '')); } catch { return; }
-        if (msg.ready) return resolve();
+        if (msg.ready) { clearTimeout(this.startTimer); return resolve(); }
         const pending = this.waiting.get(msg.id);
         if (!pending) return;
         this.waiting.delete(msg.id);
@@ -33,7 +33,15 @@ class WinHelper {
         if (msg.ok) pending.resolve(msg.result);
         else pending.reject(new Error(msg.error));
       });
+      // A helper that never says it is ready (blocked by antivirus, stuck loading) must not
+      // freeze JARVIS: give up after 20 s and start a fresh one on the next call.
+      this.startTimer = setTimeout(() => {
+        reject(new Error('Windows helper did not start in 20 s'));
+        this.readyPromise = null;
+        try { this.proc.kill(); } catch { /* already gone */ }
+      }, 20000);
       this.proc.on('exit', (code) => {
+        clearTimeout(this.startTimer);
         const err = new Error(`Windows helper stopped (code ${code}) ${stderr.slice(-400)}`);
         reject(err);
         for (const p of this.waiting.values()) { clearTimeout(p.timer); p.reject(err); }

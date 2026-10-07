@@ -201,6 +201,8 @@ let speakId = 0;
 let micMutedUntil = 0;
 const speakQueue = [];
 let speaking = false;
+let speakingSince = 0;
+let lastAudioAt = 0;
 
 function startVoice() {
   voice = utilityProcess.fork(path.join(__dirname, 'voice.js'), [], {
@@ -235,8 +237,11 @@ function speak(text, { level = 'chat' } = {}) {
 }
 
 function nextSpeech() {
+  // Safety net: a sentence that never reported back (audio device changed…) must not block the voice.
+  if (speaking && Date.now() - speakingSince > 20000) { log('speech never finished; continuing'); speaking = false; }
   if (speaking || !speakQueue.length || !voiceReady) return;
   speaking = true;
+  speakingSince = Date.now();
   const { id, text } = speakQueue.shift();
   voice.postMessage({ type: 'say', id, text });
 }
@@ -649,6 +654,7 @@ if (!app.requestSingleInstanceLock()) {
 
     ipcMain.on('audio', (_e, samples) => {
       // Ignore the mic while Jarvis itself is talking.
+      lastAudioAt = Date.now();
       if (engine && engineReady && !TEST.clips && !assistant.paused && Date.now() > micMutedUntil) engine.postMessage({ type: 'audio', samples });
     });
     ipcMain.on('spoke', (_e, { error }) => {
@@ -670,6 +676,16 @@ if (!app.requestSingleInstanceLock()) {
       }
     });
     ipcMain.on('mic-level', (_e, level) => log(`mic level (last minute peak): ${level}`));
+    // Microphone watchdog: if sound stops arriving (headset switched, Windows sound settings,
+    // another app took the mic), open the microphone again.
+    setInterval(() => {
+      if (TEST.clips || micProblem || !overlay || overlay.isDestroyed() || !lastAudioAt) return;
+      if (Date.now() - lastAudioAt > 6000) {
+        log('no sound from the microphone for 6 s, reopening it');
+        lastAudioAt = Date.now();
+        overlay.webContents.send('restart-mic');
+      }
+    }, 3000);
   });
 
   app.on('before-quit', () => { app.isQuitting = true; });
